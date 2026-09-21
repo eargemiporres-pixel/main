@@ -282,6 +282,63 @@ tbody tr.is-inactive{opacity:.45;}
 /* ===================== Footer ===================== */
 .page-footer{text-align:center; padding:20px; color:var(--app-muted); font-size:.78rem;}
 
+/* ===================== Mobile (services as cards) ===================== */
+@media (max-width:700px){
+  .topbar{padding:16px 16px;}
+  .topbar-inner{gap:12px;}
+  .topbar-logo{height:42px;}
+  .topbar-text h1{font-size:1.1rem;}
+  .topbar-text p{font-size:.8rem;}
+
+  .layout{padding:14px; gap:14px;}
+  .panel{padding:16px;}
+
+  /* Prevent iOS Safari from auto-zooming the page when a field is focused. */
+  input[type=text], input[type=number]{font-size:16px;}
+
+  .table-wrap{overflow-x:visible; border:none;}
+  table{min-width:0; width:100%;}
+  thead{display:none;}
+  tbody{display:block;}
+
+  tr{
+    display:flex; flex-wrap:wrap; align-items:center; gap:8px 10px;
+    background:#fdfcf9; border:1px solid var(--app-border); border-radius:12px;
+    padding:12px; margin-bottom:12px;
+  }
+  td{padding:0; border:none;}
+
+  .col-check{order:1;}
+  .col-color{order:2;}
+  .row-color-input{width:26px; height:26px;}
+  .col-name{order:3; flex:1 1 auto; min-width:90px;}
+  .row-name-input{min-width:0;}
+  .col-del{order:4;}
+  .del-btn{font-size:1.1rem; padding:6px 8px;}
+
+  .col-cat{order:5; flex:1 1 100%;}
+  .row-cat-input{min-width:0;}
+
+  .col-time{order:6; flex:1 1 calc(33.333% - 7px);}
+  .row-time-input{width:100%;}
+
+  .cell-total, .cell-price{
+    order:9; flex:1 1 calc(50% - 5px);
+    border-top:1px solid var(--app-border); margin-top:4px; padding-top:8px !important;
+    text-align:left;
+  }
+  .cell-price{text-align:right;}
+
+  td[data-label]::before{
+    content:attr(data-label);
+    display:block; font-size:.64rem; text-transform:uppercase; letter-spacing:.03em;
+    color:var(--app-muted); margin-bottom:3px;
+  }
+
+  .preview-frame{max-height:none;}
+  .menu-sheet-scale{max-width:340px;}
+}
+
 /* ===================== Print ===================== */
 .print-only{display:none;}
 

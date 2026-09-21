@@ -141,12 +141,12 @@ function rowTemplate(s) {
       <td class="col-check"><input type="checkbox" class="check-input" data-field="active" ${s.active ? 'checked' : ''}></td>
       <td class="col-color"><input type="color" class="row-color-input" data-field="color" value="${s.color || '#a9862e'}"></td>
       <td class="col-name"><input type="text" class="row-name-input" data-field="name" value="${escapeAttr(s.name)}" placeholder="Nombre del servicio"></td>
-      <td class="col-cat"><input type="text" class="row-cat-input" data-field="category" list="categoryList" value="${escapeAttr(s.category)}" placeholder="Categoría"></td>
-      <td class="col-time"><input type="number" min="0" step="5" class="row-time-input" data-field="tApp" value="${s.tApp}"></td>
-      <td class="col-time"><input type="number" min="0" step="5" class="row-time-input" data-field="tExp" value="${s.tExp}"></td>
-      <td class="col-time"><input type="number" min="0" step="5" class="row-time-input" data-field="tWash" value="${s.tWash}"></td>
-      <td class="cell-total">${formatDuration(d)}</td>
-      <td class="cell-price">${formatPrice(p)}</td>
+      <td class="col-cat" data-label="Categoría"><input type="text" class="row-cat-input" data-field="category" list="categoryList" value="${escapeAttr(s.category)}" placeholder="Categoría"></td>
+      <td class="col-time" data-label="Aplic."><input type="number" min="0" step="5" class="row-time-input" data-field="tApp" value="${s.tApp}"></td>
+      <td class="col-time" data-label="Expo."><input type="number" min="0" step="5" class="row-time-input" data-field="tExp" value="${s.tExp}"></td>
+      <td class="col-time" data-label="Lavado"><input type="number" min="0" step="5" class="row-time-input" data-field="tWash" value="${s.tWash}"></td>
+      <td class="cell-total" data-label="Duración">${formatDuration(d)}</td>
+      <td class="cell-price" data-label="Precio">${formatPrice(p)}</td>
       <td class="col-del"><button type="button" class="del-btn" title="Eliminar servicio">✕</button></td>
     </tr>`;
 }
