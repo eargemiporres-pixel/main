@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Muttto · Constructor de Carta de Servicios</title>
+<link rel="icon" href="assets/logo-muttto.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="premium">
+
+<header class="topbar no-print">
+  <div class="topbar-inner">
+    <img class="topbar-logo" src="assets/logo-muttto.png" alt="Muttto The Beauty Lab">
+    <div class="topbar-text">
+      <h1>Constructor de Carta de Servicios</h1>
+      <p>Crea, ajusta y exporta la carta de precios de tu salón en minutos.</p>
+    </div>
+  </div>
+</header>
+
+<main class="layout no-print">
+
+  <section class="panel builder-panel">
+
+    <div class="block">
+      <h2>1. Precio de referencia por minuto</h2>
+      <p class="hint">Precio mínimo de referencia: <strong>0,85 €/min</strong>. Elige la tarifa que se aplicará a la duración de cada servicio.</p>
+      <div class="rate-options" id="rateOptions">
+        <button type="button" class="rate-btn" data-rate="0.85">0,85 €/min<span>Base</span></button>
+        <button type="button" class="rate-btn" data-rate="0.95">0,95 €/min<span>Media</span></button>
+        <button type="button" class="rate-btn" data-rate="1.10">1,10 €/min<span>Premium</span></button>
+      </div>
+    </div>
+
+    <div class="block">
+      <h2>2. Datos de la carta</h2>
+      <div class="grid-2">
+        <label class="field">
+          <span>Nombre del salón</span>
+          <input type="text" id="salonName" value="Muttto The Beauty Lab">
+        </label>
+        <label class="field">
+          <span>Subtítulo / frase</span>
+          <input type="text" id="salonSubtitle" value="Carta de Servicios">
+        </label>
+      </div>
+    </div>
+
+    <div class="block">
+      <h2>3. Servicios</h2>
+      <p class="hint">Marca los servicios que quieres incluir, indica sus tiempos (en minutos) y edita, renombra, agrupa o crea los que necesites.</p>
+
+      <div class="table-wrap">
+        <table id="servicesTable">
+          <thead>
+            <tr>
+              <th class="col-check"></th>
+              <th class="col-color"></th>
+              <th class="col-name">Servicio</th>
+              <th class="col-cat">Categoría</th>
+              <th class="col-time">Aplicación<br><span>min</span></th>
+              <th class="col-time">Exposición<br><span>min</span></th>
+              <th class="col-time">Lavado<br><span>min</span></th>
+              <th class="col-total">Duración</th>
+              <th class="col-price">Precio</th>
+              <th class="col-del"></th>
+            </tr>
+          </thead>
+          <tbody id="servicesBody"></tbody>
+        </table>
+      </div>
+
+      <datalist id="categoryList"></datalist>
+
+      <div class="table-actions">
+        <button type="button" id="addServiceBtn" class="btn btn-ghost">+ Añadir servicio</button>
+        <button type="button" id="resetBtn" class="btn btn-text">Restablecer valores por defecto</button>
+      </div>
+    </div>
+
+    <div class="block">
+      <h2>4. Guardar / compartir tu carta</h2>
+      <p class="hint">Tu carta se guarda automáticamente en este navegador. También puedes exportarla a un archivo para editarla en otro equipo o guardarla como copia de seguridad.</p>
+      <div class="table-actions">
+        <button type="button" id="exportBtn" class="btn btn-ghost">Exportar configuración (.json)</button>
+        <label class="btn btn-ghost file-btn">
+          Importar configuración
+          <input type="file" id="importInput" accept="application/json">
+        </label>
+      </div>
+    </div>
+
+  </section>
+
+  <section class="panel preview-panel">
+    <div class="preview-sticky">
+      <h2>Vista previa</h2>
+
+      <div class="block">
+        <h3>Gama cromática del PDF</h3>
+        <div class="theme-options" id="themeOptions">
+          <button type="button" class="theme-btn" data-theme="premium">
+            <span class="swatch swatch-premium"></span>
+            Verde &amp; Dorado <em>Premium</em>
+          </button>
+          <button type="button" class="theme-btn" data-theme="pastel">
+            <span class="swatch swatch-pastel"></span>
+            Rosas &amp; Pastel
+          </button>
+          <button type="button" class="theme-btn" data-theme="minimal">
+            <span class="swatch swatch-minimal"></span>
+            Minimalista <em>Dorado &amp; Blanco</em>
+          </button>
+        </div>
+      </div>
+
+      <button type="button" id="printBtn" class="btn btn-primary">🖨 Imprimir / Descargar PDF</button>
+
+      <div class="preview-frame">
+        <div class="menu-sheet-scale">
+          <div id="menuSheet" class="menu-sheet"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="no-print page-footer">
+  <p>© Muttto The Beauty Lab — Herramienta interna de creación de cartas de servicios.</p>
+</footer>
+
+<!-- Print-only version of the menu, full size -->
+<div id="printSheetWrap" class="print-only"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
