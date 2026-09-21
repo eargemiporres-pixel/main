@@ -1,6 +1,6 @@
-# Muttto · Constructor de Carta de Servicios
+# Muttto · Constructor de Menú de Servicios
 
-Landing interna para construir la carta de precios de la peluquería a partir de
+Landing interna para construir el menú de precios de la peluquería a partir de
 servicios seleccionables. Por cada servicio activo se indican sus tiempos
 (aplicación, exposición, lavado), la herramienta calcula la **duración total**
 y el **precio** aplicando una tarifa por minuto. Al terminar, se exporta como
@@ -28,7 +28,7 @@ assets/      Logo de Muttto
    exposición, lavado). La duración y el precio se recalculan al vuelo. Se
    pueden añadir filas nuevas, renombrar, cambiar de categoría o eliminar
    libremente — no hay una lista "cerrada" de servicios.
-3. **Vista previa**: a la derecha se ve en tiempo real cómo quedará la carta,
+3. **Vista previa**: a la derecha se ve en tiempo real cómo quedará el menú,
    agrupada por categoría.
 4. **Gama cromática**: 3 temas —
    - *Verde y Dorado* (premium)
@@ -36,9 +36,9 @@ assets/      Logo de Muttto
    - *Minimalista, Dorado y Blanco*
 5. **Imprimir / Descargar PDF**: genera una versión a tamaño A4 con el logo y
    el tema elegido y abre el diálogo de impresión del navegador. Desde ahí se
-   elige "Guardar como PDF" (o imprimir en papel). Si la carta tiene muchos
+   elige "Guardar como PDF" (o imprimir en papel). Si el menú tiene muchos
    servicios, se reparte automáticamente en varias páginas — nada se recorta.
-6. **Guardado**: la carta se guarda automáticamente en el navegador
+6. **Guardado**: el menú se guarda automáticamente en el navegador
    (`localStorage`), así que si se cierra la pestaña no se pierde nada. Además
    hay botones para **exportar** la configuración a un archivo `.json` (copia
    de seguridad o para pasarla a otro ordenador) e **importarla** de vuelta.
@@ -71,7 +71,7 @@ Hay dos niveles:
   editar `index.html` / `styles.css` / `app.js`. Sobre "permisos de
   administrador": esta herramienta no tiene login ni backend, así que no
   existe un usuario "admin" dentro de la web — cualquiera con el enlace puede
-  editar su propia carta en su navegador (los datos no son compartidos ni
+  editar su propio menú en su navegador (los datos no son compartidos ni
   visibles entre usuarios). Para pedir este tipo de cambios de código, la vía
   más simple es seguir usando esta misma sesión/repositorio de Claude Code: se
   describe el cambio y se sube directamente a la rama del proyecto. Si en el

@@ -1,5 +1,5 @@
 /* =========================================================================
-   Muttto · Constructor de Carta de Servicios
+   Muttto · Constructor de Menú de Servicios
    Todo el estado vive en el navegador (localStorage). No hay backend.
    Ver README.md para cómo editar textos/estilos de base o desplegar cambios.
    ========================================================================= */
@@ -33,7 +33,7 @@ function defaultState() {
     rate: 0.85,
     theme: 'premium',
     salonName: 'Muttto The Beauty Lab',
-    salonSubtitle: 'Carta de Servicios',
+    salonSubtitle: 'Menú de Servicios',
     services: DEFAULT_SERVICES.map(s => ({ ...s, id: uid() })),
   };
 }
@@ -68,7 +68,7 @@ function duration(s) {
 
 function price(s) {
   const raw = duration(s) * state.rate;
-  return Math.round(raw / 0.5) * 0.5; // redondeo a 0,50 € para precios "de carta"
+  return Math.round(raw / 0.5) * 0.5; // redondeo a 0,50 € para precios "de menú"
 }
 
 function formatDuration(min) {
@@ -164,7 +164,7 @@ function renderMenuSheet(target) {
         <p class="ms-salon">${escapeHtml(state.salonName)}</p>
         <p class="ms-subtitle">${escapeHtml(state.salonSubtitle)}</p>
       </div>
-      <div class="ms-empty">Selecciona al menos un servicio para ver la carta.</div>`;
+      <div class="ms-empty">Selecciona al menos un servicio para ver el menú.</div>`;
     return;
   }
 
@@ -256,7 +256,7 @@ el.servicesBody.addEventListener('click', e => {
   if (!delBtn) return;
   const row = delBtn.closest('tr');
   const s = state.services.find(x => x.id === row.dataset.id);
-  if (s && !confirm(`¿Eliminar "${s.name || 'este servicio'}" de la carta?`)) return;
+  if (s && !confirm(`¿Eliminar "${s.name || 'este servicio'}" del menú?`)) return;
   state.services = state.services.filter(x => x.id !== row.dataset.id);
   renderAll();
 });
@@ -283,7 +283,7 @@ el.exportBtn.addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `carta-servicios-muttto-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `menu-servicios-muttto-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 });
@@ -300,7 +300,7 @@ el.importInput.addEventListener('change', () => {
         rate: RATES.includes(parsed.rate) ? parsed.rate : 0.85,
         theme: ['premium', 'pastel', 'minimal'].includes(parsed.theme) ? parsed.theme : 'premium',
         salonName: parsed.salonName || 'Muttto The Beauty Lab',
-        salonSubtitle: parsed.salonSubtitle || 'Carta de Servicios',
+        salonSubtitle: parsed.salonSubtitle || 'Menú de Servicios',
         services: parsed.services.map(s => ({
           id: s.id || uid(),
           name: s.name || 'Servicio',
@@ -324,7 +324,7 @@ el.importInput.addEventListener('change', () => {
 el.printBtn.addEventListener('click', () => {
   const active = state.services.filter(s => s.active);
   if (active.length === 0) {
-    alert('Selecciona al menos un servicio antes de imprimir la carta.');
+    alert('Selecciona al menos un servicio antes de imprimir el menú.');
     return;
   }
   const sheet = document.createElement('div');
