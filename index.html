@@ -52,7 +52,9 @@
 
     <div class="block">
       <h2>3. Servicios</h2>
-      <p class="hint">Marca los servicios que quieres incluir, indica sus tiempos (en minutos) y edita, renombra, agrupa o crea los que necesites.</p>
+      <p class="hint">Marca los servicios que quieres incluir, indica sus tiempos (en minutos) y edita, renombra, agrupa o crea los que necesites. El precio se calcula solo con la tarifa elegida, pero puedes escribir uno manual en cualquier fila — queda fijo hasta que pulses ↺ para volver al automático. Usa ↑ ↓ para ordenar la lista a tu gusto.</p>
+
+      <div class="category-manager" id="categoryManager"></div>
 
       <div class="table-wrap">
         <table id="servicesTable">
@@ -67,7 +69,7 @@
               <th class="col-time">Lavado<br><span>min</span></th>
               <th class="col-total">Duración</th>
               <th class="col-price">Precio</th>
-              <th class="col-del"></th>
+              <th class="col-actions"></th>
             </tr>
           </thead>
           <tbody id="servicesBody"></tbody>

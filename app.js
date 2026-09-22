@@ -7,22 +7,66 @@
 const STORAGE_KEY = 'muttto_menu_builder_v1';
 const RATES = [0.85, 0.95, 1.10];
 
+/* Datos reales del "Cuadrante del Estilista de Muttto". Tiempos y precio
+   mínimo (0,85€/min) según el documento; cuando el documento incluía además
+   un precio "recomendado por valor de producto" ya pactado, se usa como
+   precio manual de partida (editable, y siempre se puede volver al automático). */
 const DEFAULT_SERVICES = [
-  { name: 'Corte caballero',            category: 'Cortes y Peinado', color: '#a9862e', active: true,  tApp: 20, tExp: 0,  tWash: 5  },
-  { name: 'Corte Señora',               category: 'Cortes y Peinado', color: '#a9862e', active: true,  tApp: 30, tExp: 0,  tWash: 10 },
-  { name: 'Corte niño',                 category: 'Cortes y Peinado', color: '#a9862e', active: true,  tApp: 15, tExp: 0,  tWash: 5  },
-  { name: 'Secado',                     category: 'Cortes y Peinado', color: '#a9862e', active: true,  tApp: 20, tExp: 0,  tWash: 0  },
-  { name: 'Color de Raíz',              category: 'Color y Técnicas', color: '#a9862e', active: true,  tApp: 15, tExp: 30, tWash: 10 },
-  { name: 'Matización',                 category: 'Color y Técnicas', color: '#a9862e', active: true,  tApp: 10, tExp: 20, tWash: 10 },
-  { name: 'Mechas',                     category: 'Color y Técnicas', color: '#a9862e', active: true,  tApp: 30, tExp: 40, tWash: 15 },
-  { name: 'Alisados',                   category: 'Color y Técnicas', color: '#a9862e', active: true,  tApp: 40, tExp: 30, tWash: 15 },
-  { name: 'Tratamientos',               category: 'Tratamientos',     color: '#a9862e', active: true,  tApp: 10, tExp: 15, tWash: 10 },
-  { name: 'Ventas',                     category: 'Otros',            color: '#a9862e', active: false, tApp: 5,  tExp: 0,  tWash: 0  },
-  { name: 'Mechas Completas + Matiz',   category: 'Packs de Color',   color: '#d4af37', active: true,  tApp: 45, tExp: 40, tWash: 15 },
-  { name: 'Medias Mechas + Matiz',      category: 'Packs de Color',   color: '#7b1450', active: true,  tApp: 35, tExp: 35, tWash: 15 },
-  { name: 'Balayage / Babylight + Matiz', category: 'Packs de Color', color: '#8e2a75', active: true,  tApp: 50, tExp: 40, tWash: 15 },
-  { name: 'Tinte Completas',            category: 'Packs de Color',   color: '#e07a95', active: true,  tApp: 20, tExp: 35, tWash: 15 },
-  { name: 'Tinte Raíz',                 category: 'Packs de Color',   color: '#e8a0b4', active: true,  tApp: 15, tExp: 30, tWash: 10 },
+  // 1. Servicios de corte · CUT&DESIGN
+  { name: 'Corte de caballero', category: 'Cortes · Cut&Design', color: '#a9862e', active: true, tApp: 15, tExp: 0, tWash: 3, manualPrice: null },
+  { name: 'Corte de señora', category: 'Cortes · Cut&Design', color: '#a9862e', active: true, tApp: 25, tExp: 0, tWash: 5, manualPrice: null },
+
+  // 2. Servicios de color
+  { name: 'Coloración en Óleo NCC (Mousse Choice)', category: 'Color', color: '#8a2942', active: true, tApp: 15, tExp: 40, tWash: 5, manualPrice: null },
+  { name: 'Color NCC + Tratamiento (Mousse Choice + Lípidos)', category: 'Color', color: '#8a2942', active: true, tApp: 15, tExp: 40, tWash: 5, manualPrice: null },
+  { name: 'Coloración en crema (Tsubaki Cream)', category: 'Color', color: '#8a2942', active: true, tApp: 15, tExp: 40, tWash: 5, manualPrice: 55.00 },
+  { name: 'Coloración en crema Tsuyo + Tratamiento (Aceite de Kendy)', category: 'Color', color: '#8a2942', active: true, tApp: 15, tExp: 40, tWash: 5, manualPrice: 55.00 },
+  { name: 'Coloración en gel Confort Color (Gelatine Butter)', category: 'Color', color: '#8a2942', active: true, tApp: 15, tExp: 40, tWash: 5, manualPrice: 59.00 },
+  { name: 'Color Confort + Tratamiento (Gelatine Butter + Lípidos)', category: 'Color', color: '#8a2942', active: true, tApp: 15, tExp: 40, tWash: 5, manualPrice: 59.00 },
+  { name: 'Coloración de Barros Yukiro (Mud Therapy Color)', category: 'Color', color: '#8a2942', active: true, tApp: 15, tExp: 40, tWash: 5, manualPrice: 80.00 },
+  { name: 'Servicio de Color + Mechas (Raíz Tsuyo + mechas Cream Light)', category: 'Color', color: '#8a2942', active: true, tApp: 30, tExp: 40, tWash: 5, manualPrice: 90.00 },
+
+  // 0. Matización
+  { name: 'Matización única + tratamiento Blend', category: 'Matización', color: '#c9a35c', active: true, tApp: 5, tExp: 20, tWash: 5, manualPrice: null },
+  { name: 'Matización en Óleo (Gloss Color) + tratamiento Blend', category: 'Matización', color: '#c9a35c', active: true, tApp: 5, tExp: 20, tWash: 5, manualPrice: null },
+  { name: 'Matización en Gel (Gelatine Gloss Therapy) + tratamiento Blend', category: 'Matización', color: '#c9a35c', active: true, tApp: 5, tExp: 20, tWash: 5, manualPrice: null },
+
+  // 3. Servicio de Mechas
+  { name: 'Puntos de luz (soft lights) con Matiz y Blend Treatment + Protector', category: 'Mechas', color: '#6b2c91', active: true, tApp: 60, tExp: 50, tWash: 5, manualPrice: null },
+  { name: 'Servicio de Mechas (Care Blond Therapy) con Matiz y Blend Treatment + Protector', category: 'Mechas', color: '#6b2c91', active: true, tApp: 150, tExp: 50, tWash: 5, manualPrice: null },
+  { name: 'Servicio de Mechas con Matiz y Blend Treatment + Protector', category: 'Mechas', color: '#6b2c91', active: true, tApp: 180, tExp: 50, tWash: 5, manualPrice: null },
+  { name: 'Servicio Airtouch LightCode con Blend Treatment + Protector', category: 'Mechas', color: '#6b2c91', active: true, tApp: 210, tExp: 20, tWash: 5, manualPrice: 300.00 },
+  { name: 'Servicio Airtouch Reverse con Blend Treatment + Protector', category: 'Mechas', color: '#6b2c91', active: true, tApp: 210, tExp: 20, tWash: 5, manualPrice: 300.00 },
+  { name: 'Servicio Airtouch Double con Blend Treatment + Protector', category: 'Mechas', color: '#6b2c91', active: true, tApp: 210, tExp: 20, tWash: 5, manualPrice: 300.00 },
+
+  // 4. Servicios de Tratamientos
+  { name: 'Servicio de Cuero Cabelludo (Wellness Therapy Teabase)', category: 'Tratamientos', color: '#2f6f5e', active: true, tApp: 15, tExp: 15, tWash: 10, manualPrice: null },
+  { name: 'Hidratación con línea Hydracore (Wellness Therapy Hydracore)', category: 'Tratamientos', color: '#2f6f5e', active: true, tApp: 15, tExp: 15, tWash: 10, manualPrice: null },
+  { name: 'Nutrición con línea Spa (Wellness Therapy & Spa)', category: 'Tratamientos', color: '#2f6f5e', active: true, tApp: 15, tExp: 15, tWash: 10, manualPrice: null },
+  { name: 'Hidratación con aceite de Kendy (Wellness Therapy Kendy Caliente)', category: 'Tratamientos', color: '#2f6f5e', active: true, tApp: 15, tExp: 15, tWash: 10, manualPrice: 42.00 },
+  { name: 'Hidratación con Panacea (Wellness Therapy Panacea)', category: 'Tratamientos', color: '#2f6f5e', active: true, tApp: 15, tExp: 15, tWash: 10, manualPrice: 42.00 },
+
+  // 5. Servicio de Secado · DRY & STYLE
+  { name: 'Dry Express', category: 'Secado · Dry & Style', color: '#b5651d', active: true, tApp: 10, tExp: 0, tWash: 5, manualPrice: null },
+  { name: 'Dry & Style: corto', category: 'Secado · Dry & Style', color: '#b5651d', active: true, tApp: 20, tExp: 0, tWash: 5, manualPrice: null },
+  { name: 'Dry & Style: medio', category: 'Secado · Dry & Style', color: '#b5651d', active: true, tApp: 20, tExp: 0, tWash: 5, manualPrice: null },
+  { name: 'Dry & Style: largo', category: 'Secado · Dry & Style', color: '#b5651d', active: true, tApp: 30, tExp: 0, tWash: 5, manualPrice: null },
+  { name: 'Dry & Style: XL', category: 'Secado · Dry & Style', color: '#b5651d', active: true, tApp: 45, tExp: 0, tWash: 5, manualPrice: null },
+
+  // 6. Forma · SHAPE CONTROL (moldeado)
+  { name: 'Shape corto', category: 'Forma · Shape Control', color: '#3d5a80', active: true, tApp: 30, tExp: 15, tWash: 5, manualPrice: null },
+  { name: 'Shape medio', category: 'Forma · Shape Control', color: '#3d5a80', active: true, tApp: 45, tExp: 15, tWash: 5, manualPrice: null },
+  { name: 'Shape largo', category: 'Forma · Shape Control', color: '#3d5a80', active: true, tApp: 60, tExp: 15, tWash: 5, manualPrice: null },
+
+  // 7. SMOOTH RITUAL (alisados y laminados)
+  { name: 'Smooth Straightening (laminado)', category: 'Smooth Ritual · Alisados', color: '#4a1942', active: true, tApp: 60, tExp: 30, tWash: 10, manualPrice: null },
+  { name: 'Alisado Biosfera', category: 'Smooth Ritual · Alisados', color: '#4a1942', active: true, tApp: 90, tExp: 90, tWash: 15, manualPrice: 250.00 },
+
+  // 8. SERVICIOS VIBBRO
+  { name: 'Teadhara Experience', category: 'Servicios Vibbro', color: '#d1495b', active: true, tApp: 30, tExp: 0, tWash: 5, manualPrice: 60.00 },
+  { name: 'Cascada Hidratante', category: 'Servicios Vibbro', color: '#d1495b', active: true, tApp: 45, tExp: 0, tWash: 5, manualPrice: 67.00 },
+  { name: 'Elixir Hair & Body', category: 'Servicios Vibbro', color: '#d1495b', active: true, tApp: 60, tExp: 0, tWash: 5, manualPrice: 80.00 },
+  { name: 'Mud Experience Scalp & Face', category: 'Servicios Vibbro', color: '#d1495b', active: true, tApp: 60, tExp: 0, tWash: 5, manualPrice: 80.00 },
 ].map(withId);
 
 function withId(s) { return { id: uid(), ...s }; }
@@ -66,9 +110,14 @@ function duration(s) {
   return Math.max(0, (Number(s.tApp) || 0) + (Number(s.tExp) || 0) + (Number(s.tWash) || 0));
 }
 
+function round2(v) { return Math.round(v * 100) / 100; }
+
+function autoPrice(s) { return round2(duration(s) * state.rate); }
+
+function isManual(s) { return s.manualPrice !== null && s.manualPrice !== undefined && !Number.isNaN(s.manualPrice); }
+
 function price(s) {
-  const raw = duration(s) * state.rate;
-  return Math.round(raw / 0.5) * 0.5; // redondeo a 0,50 € para precios "de menú"
+  return isManual(s) ? s.manualPrice : autoPrice(s);
 }
 
 function formatDuration(min) {
@@ -93,6 +142,7 @@ const el = {
   salonSubtitle: document.getElementById('salonSubtitle'),
   servicesBody: document.getElementById('servicesBody'),
   categoryList: document.getElementById('categoryList'),
+  categoryManager: document.getElementById('categoryManager'),
   addServiceBtn: document.getElementById('addServiceBtn'),
   resetBtn: document.getElementById('resetBtn'),
   exportBtn: document.getElementById('exportBtn'),
@@ -108,6 +158,7 @@ function renderAll() {
   renderControls();
   renderTable();
   renderCategoryList();
+  renderCategoryManager();
   renderMenuSheet(el.menuSheet);
   saveState();
 }
@@ -129,13 +180,32 @@ function renderCategoryList() {
   el.categoryList.innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
 }
 
-function renderTable() {
-  el.servicesBody.innerHTML = state.services.map(rowTemplate).join('');
+function renderCategoryManager() {
+  const groups = [];
+  state.services.forEach(s => {
+    const cat = s.category || '';
+    let g = groups.find(x => x.cat === cat);
+    if (!g) { g = { cat, label: cat || 'Sin categoría', count: 0 }; groups.push(g); }
+    g.count++;
+  });
+
+  if (groups.length === 0) { el.categoryManager.innerHTML = ''; return; }
+
+  el.categoryManager.innerHTML = groups.map(g => `
+    <div class="cat-chip">
+      <span>${escapeHtml(g.label)} <em>(${g.count})</em></span>
+      <button type="button" class="cat-del-btn" data-cat="${escapeAttr(g.cat)}" title="Eliminar todos los servicios de &quot;${escapeAttr(g.label)}&quot;">🗑 Eliminar grupo</button>
+    </div>`).join('');
 }
 
-function rowTemplate(s) {
+function renderTable() {
+  el.servicesBody.innerHTML = state.services.map((s, i) => rowTemplate(s, i, state.services.length)).join('');
+}
+
+function rowTemplate(s, index, total) {
   const d = duration(s);
   const p = price(s);
+  const manual = isManual(s);
   return `
     <tr data-id="${s.id}" class="${s.active ? '' : 'is-inactive'}">
       <td class="col-check"><input type="checkbox" class="check-input" data-field="active" ${s.active ? 'checked' : ''}></td>
@@ -146,8 +216,19 @@ function rowTemplate(s) {
       <td class="col-time" data-label="Expo."><input type="number" min="0" step="5" class="row-time-input" data-field="tExp" value="${s.tExp}"></td>
       <td class="col-time" data-label="Lavado"><input type="number" min="0" step="5" class="row-time-input" data-field="tWash" value="${s.tWash}"></td>
       <td class="cell-total" data-label="Duración">${formatDuration(d)}</td>
-      <td class="cell-price" data-label="Precio">${formatPrice(p)}</td>
-      <td class="col-del"><button type="button" class="del-btn" title="Eliminar servicio">✕</button></td>
+      <td class="cell-price" data-label="Precio">
+        <div class="price-cell">
+          <input type="number" min="0" step="0.01" class="row-price-input ${manual ? 'is-manual' : ''}" data-field="manualPrice" value="${p.toFixed(2)}" title="${manual ? 'Precio manual' : 'Precio automático (tarifa × duración)'}">
+          ${manual ? '<button type="button" class="price-reset-btn" title="Volver al precio automático">↺</button>' : ''}
+        </div>
+      </td>
+      <td class="col-actions">
+        <div class="row-actions">
+          <button type="button" class="order-btn move-up-btn" title="Subir" ${index === 0 ? 'disabled' : ''}>↑</button>
+          <button type="button" class="order-btn move-down-btn" title="Bajar" ${index === total - 1 ? 'disabled' : ''}>↓</button>
+          <button type="button" class="del-btn" title="Eliminar servicio">✕</button>
+        </div>
+      </td>
     </tr>`;
 }
 
@@ -189,7 +270,7 @@ function renderMenuSheet(target) {
       <p class="ms-subtitle">${escapeHtml(state.salonSubtitle)}</p>
     </div>
     <div class="ms-body">${categoriesHtml}</div>
-    <div class="ms-footer">Tarifa aplicada: ${state.rate.toString().replace('.', ',')} € / min · ${new Date().toLocaleDateString('es-ES')}</div>`;
+    <div class="ms-footer">Tarifa base: ${state.rate.toString().replace('.', ',')} € / min · ${new Date().toLocaleDateString('es-ES')}</div>`;
 }
 
 function rowHtml(s) {
@@ -237,11 +318,15 @@ el.servicesBody.addEventListener('input', e => {
 
   if (field === 'active') s.active = e.target.checked;
   else if (['tApp', 'tExp', 'tWash'].includes(field)) s[field] = Math.max(0, Number(e.target.value) || 0);
+  else if (field === 'manualPrice') {
+    const v = parseFloat(e.target.value);
+    s.manualPrice = Number.isFinite(v) && v >= 0 ? v : null;
+  }
   else s[field] = e.target.value;
 
-  // Avoid a full re-render on every keystroke for text fields (keeps focus/caret).
-  if (field === 'name' || field === 'category' || field === 'color') {
-    if (field === 'category') renderCategoryList();
+  // Avoid a full re-render on every keystroke for text-like fields (keeps focus/caret).
+  if (field === 'name' || field === 'category' || field === 'color' || field === 'manualPrice') {
+    if (field === 'category') { renderCategoryList(); renderCategoryManager(); }
     renderMenuSheet(el.menuSheet);
     saveState();
   } else {
@@ -251,20 +336,56 @@ el.servicesBody.addEventListener('input', e => {
   }
 });
 
+// On blur/enter (change), do a full row re-render so the "manual price" reset
+// icon and styling reflect the latest value without disrupting typing.
+el.servicesBody.addEventListener('change', e => {
+  if (e.target.dataset.field === 'manualPrice') renderTable();
+});
+
 el.servicesBody.addEventListener('click', e => {
   const delBtn = e.target.closest('.del-btn');
-  if (!delBtn) return;
-  const row = delBtn.closest('tr');
-  const s = state.services.find(x => x.id === row.dataset.id);
-  if (s && !confirm(`¿Eliminar "${s.name || 'este servicio'}" del menú?`)) return;
-  state.services = state.services.filter(x => x.id !== row.dataset.id);
+  const upBtn = e.target.closest('.move-up-btn');
+  const downBtn = e.target.closest('.move-down-btn');
+  const resetBtn = e.target.closest('.price-reset-btn');
+  if (!delBtn && !upBtn && !downBtn && !resetBtn) return;
+
+  const row = e.target.closest('tr');
+  const id = row.dataset.id;
+  const idx = state.services.findIndex(x => x.id === id);
+  if (idx === -1) return;
+  const s = state.services[idx];
+
+  if (delBtn) {
+    if (!confirm(`¿Eliminar "${s.name || 'este servicio'}" del menú?`)) return;
+    state.services.splice(idx, 1);
+  } else if (upBtn && idx > 0) {
+    [state.services[idx - 1], state.services[idx]] = [state.services[idx], state.services[idx - 1]];
+  } else if (downBtn && idx < state.services.length - 1) {
+    [state.services[idx], state.services[idx + 1]] = [state.services[idx + 1], state.services[idx]];
+  } else if (resetBtn) {
+    s.manualPrice = null;
+  } else {
+    return;
+  }
+  renderAll();
+});
+
+el.categoryManager.addEventListener('click', e => {
+  const btn = e.target.closest('.cat-del-btn');
+  if (!btn) return;
+  const cat = btn.dataset.cat;
+  const affected = state.services.filter(s => (s.category || '') === cat);
+  if (affected.length === 0) return;
+  const label = cat || 'Sin categoría';
+  if (!confirm(`¿Eliminar los ${affected.length} servicios de "${label}"? Esta acción no se puede deshacer.`)) return;
+  state.services = state.services.filter(s => (s.category || '') !== cat);
   renderAll();
 });
 
 el.addServiceBtn.addEventListener('click', () => {
   state.services.push({
     id: uid(), name: 'Nuevo servicio', category: 'Otros', color: '#a9862e',
-    active: true, tApp: 15, tExp: 0, tWash: 0,
+    active: true, tApp: 15, tExp: 0, tWash: 0, manualPrice: null,
   });
   renderAll();
   const rows = el.servicesBody.querySelectorAll('tr');
@@ -301,16 +422,20 @@ el.importInput.addEventListener('change', () => {
         theme: ['premium', 'pastel', 'minimal'].includes(parsed.theme) ? parsed.theme : 'premium',
         salonName: parsed.salonName || 'Muttto The Beauty Lab',
         salonSubtitle: parsed.salonSubtitle || 'Menú de Servicios',
-        services: parsed.services.map(s => ({
-          id: s.id || uid(),
-          name: s.name || 'Servicio',
-          category: s.category || 'Otros',
-          color: s.color || '#a9862e',
-          active: !!s.active,
-          tApp: Number(s.tApp) || 0,
-          tExp: Number(s.tExp) || 0,
-          tWash: Number(s.tWash) || 0,
-        })),
+        services: parsed.services.map(s => {
+          const mp = parseFloat(s.manualPrice);
+          return {
+            id: s.id || uid(),
+            name: s.name || 'Servicio',
+            category: s.category || 'Otros',
+            color: s.color || '#a9862e',
+            active: !!s.active,
+            tApp: Number(s.tApp) || 0,
+            tExp: Number(s.tExp) || 0,
+            tWash: Number(s.tWash) || 0,
+            manualPrice: Number.isFinite(mp) ? mp : null,
+          };
+        }),
       };
       renderAll();
     } catch (err) {

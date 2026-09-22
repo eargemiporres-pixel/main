@@ -130,7 +130,7 @@ p{margin:0;}
 
 /* ===================== Table ===================== */
 .table-wrap{overflow-x:auto; border:1px solid var(--app-border); border-radius:10px;}
-table{border-collapse:collapse; width:100%; min-width:900px;}
+table{border-collapse:collapse; width:100%; min-width:1080px;}
 thead th{
   background:#f8f4ea;
   color:var(--app-accent-dark);
@@ -142,8 +142,8 @@ thead th{
   border-bottom:1px solid var(--app-border);
 }
 thead th span{font-size:.62rem; text-transform:none; color:var(--app-muted);}
-.col-name{text-align:left !important; min-width:170px;}
-.col-cat{min-width:190px;}
+.col-name{text-align:left !important; min-width:300px;}
+.col-cat{min-width:160px;}
 tbody td{padding:6px 6px; border-bottom:1px solid #f0ece2; vertical-align:middle;}
 tbody tr:last-child td{border-bottom:none;}
 tbody tr.is-inactive{opacity:.45;}
@@ -153,13 +153,48 @@ tbody tr.is-inactive{opacity:.45;}
 .row-color-input{width:28px; height:28px; padding:0; border:none; background:none; cursor:pointer;}
 .cell-total{white-space:nowrap; font-weight:600; text-align:center; font-size:.85rem;}
 .cell-price{white-space:nowrap; font-weight:700; text-align:center; color:var(--app-accent-dark); font-size:.92rem;}
-.del-btn{
-  border:none; background:none; color:#b3554b; cursor:pointer; font-size:1rem; padding:4px 8px; border-radius:6px;
+
+.price-cell{display:flex; align-items:center; gap:4px; justify-content:center;}
+.row-price-input{
+  width:78px; text-align:center; font-weight:700; color:var(--app-accent-dark);
+  border-color:var(--app-border);
 }
+.row-price-input.is-manual{
+  border-color:var(--app-accent); background:#fdf6e6; color:#7c611f;
+}
+.price-reset-btn{
+  border:1px solid var(--app-border); background:#fdfcf9; border-radius:6px;
+  width:24px; height:24px; line-height:1; cursor:pointer; color:var(--app-muted); flex:none;
+}
+.price-reset-btn:hover{border-color:var(--app-accent); color:var(--app-accent-dark);}
+
+.row-actions{display:flex; align-items:center; justify-content:center; gap:4px;}
+.order-btn, .del-btn{
+  border:none; background:none; cursor:pointer; font-size:.95rem; padding:4px 7px; border-radius:6px; color:var(--app-muted);
+}
+.order-btn:hover{background:#f0ece2; color:var(--app-text);}
+.order-btn:disabled{opacity:.3; cursor:default;}
+.order-btn:disabled:hover{background:none;}
+.del-btn{color:#b3554b;}
 .del-btn:hover{background:#fbe6e3;}
 .check-input{transform:scale(1.15); cursor:pointer;}
 
 .table-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;}
+
+/* ===================== Category manager (bulk delete by group) ===================== */
+.category-manager{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;}
+.cat-chip{
+  display:flex; align-items:center; gap:8px;
+  background:#f8f4ea; border:1px solid var(--app-border); border-radius:999px;
+  padding:6px 8px 6px 14px; font-size:.8rem;
+}
+.cat-chip em{font-style:normal; color:var(--app-muted);}
+.cat-del-btn{
+  border:none; background:#fff; color:#b3554b; cursor:pointer;
+  font-size:.72rem; font-weight:600; padding:5px 10px; border-radius:999px;
+  border:1px solid #f0d3ce; white-space:nowrap;
+}
+.cat-del-btn:hover{background:#fbe6e3;}
 
 /* ===================== Buttons ===================== */
 .btn{
@@ -313,7 +348,9 @@ tbody tr.is-inactive{opacity:.45;}
   .row-color-input{width:26px; height:26px;}
   .col-name{order:3; flex:1 1 auto; min-width:90px;}
   .row-name-input{min-width:0;}
-  .col-del{order:4;}
+  .col-actions{order:4; margin-left:auto;}
+  .row-actions{gap:2px;}
+  .order-btn{font-size:1rem; padding:6px 6px;}
   .del-btn{font-size:1.1rem; padding:6px 8px;}
 
   .col-cat{order:5; flex:1 1 100%;}
@@ -328,6 +365,8 @@ tbody tr.is-inactive{opacity:.45;}
     text-align:left;
   }
   .cell-price{text-align:right;}
+  .cell-price .price-cell{justify-content:flex-end;}
+  .cell-price .row-price-input{width:72px;}
 
   td[data-label]::before{
     content:attr(data-label);
