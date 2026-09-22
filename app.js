@@ -303,17 +303,49 @@ function renderMenuSheet(target) {
       <p class="ms-subtitle">${escapeHtml(state.salonSubtitle)}</p>
     </div>
     <div class="ms-body">${categoriesHtml}</div>
-    <div class="ms-footer">Tarifa base: ${state.rate.toString().replace('.', ',')} € / min${state.rateMode === 'custom' ? ' (personalizada)' : ''} · ${new Date().toLocaleDateString('es-ES')}</div>`;
+    <div class="ms-footer">Tarifa base: ${state.rate.toString().replace('.', ',')} € / min${state.rateMode === 'custom' ? ' (personalizada)' : ''} · ${new Date().toLocaleDateString('es-ES')}</div>
+    ${timesGuideHtml(categories)}`;
 }
 
 function rowHtml(s) {
   return `
     <div class="ms-row">
       <span class="ms-row-dot" style="background:${s.color || '#a9862e'}"></span>
-      <span class="ms-row-name">${escapeHtml(s.name || 'Servicio')}</span>
-      <span class="ms-row-meta">${formatDuration(duration(s))}</span>
+      <span class="ms-row-text"><span class="ms-row-name">${escapeHtml(s.name || 'Servicio')}</span> <span class="ms-row-meta">${formatDuration(duration(s))}</span></span>
       <span class="ms-row-fill"></span>
       <span class="ms-row-price">${formatPrice(price(s))}</span>
+    </div>`;
+}
+
+// Última página del PDF: guía interna de tiempos para el estilista (no es
+// contenido de cara al cliente, por eso va aparte, tras la carta de precios).
+function timesGuideHtml(categories) {
+  const rowsHtml = categories.map(g => `
+    <tr class="ms-times-cat-row"><td colspan="5">${escapeHtml(g.name)}</td></tr>
+    ${g.items.map(s => `
+      <tr>
+        <td class="ms-times-name">${escapeHtml(s.name || 'Servicio')}</td>
+        <td>${s.tApp || 0}</td>
+        <td>${s.tExp || 0}</td>
+        <td>${s.tWash || 0}</td>
+        <td class="ms-times-total">${formatDuration(duration(s))}</td>
+      </tr>`).join('')}`).join('');
+
+  return `
+    <div class="ms-times-page">
+      <div class="ms-category-title">Guía de tiempos · Uso interno</div>
+      <table class="ms-times-table">
+        <thead>
+          <tr>
+            <th>Servicio</th>
+            <th>Aplic.<br><span>min</span></th>
+            <th>Expo.<br><span>min</span></th>
+            <th>Lavado<br><span>min</span></th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
     </div>`;
 }
 
@@ -515,7 +547,11 @@ el.printBtn.addEventListener('click', () => {
   el.printSheetWrap.innerHTML = '';
   el.printSheetWrap.appendChild(sheet);
   renderMenuSheet(sheet);
-  requestAnimationFrame(() => window.print());
+  // Wait for the web fonts to finish loading before printing: printing with a
+  // fallback font mid-swap can render text wider than expected and misalign
+  // the price column.
+  const ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+  ready.then(() => requestAnimationFrame(() => window.print()));
 });
 
 /* --------------------------------- Init ----------------------------------- */
