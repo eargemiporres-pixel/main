@@ -1,10 +1,11 @@
 /* =========================================================================
    Muttto · Constructor de Menú de Servicios
-   Todo el estado vive en el navegador (localStorage). No hay backend.
+   El estado vive solo en memoria durante la sesión: al recargar la página
+   siempre se vuelve a partir de los valores por defecto (no hay backend ni
+   guardado en el navegador).
    Ver README.md para cómo editar textos/estilos de base o desplegar cambios.
    ========================================================================= */
 
-const STORAGE_KEY = 'muttto_menu_builder_v1';
 const RATES = [0.85, 0.95, 1.10];
 
 /* Datos reales del "Cuadrante del Estilista de Muttto". Tiempos y precio
@@ -86,31 +87,7 @@ function defaultState() {
   };
 }
 
-let state = loadState();
-
-/* ------------------------------- Storage ------------------------------- */
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState();
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.services)) return defaultState();
-    // Backfill fields from earlier versions of the tool so old saved menus keep working.
-    if (parsed.rateMode !== 'preset' && parsed.rateMode !== 'custom') parsed.rateMode = 'preset';
-    if (!Number.isFinite(parsed.customRate)) parsed.customRate = null;
-    parsed.services.forEach(s => { if (!Number.isFinite(s.recommendedPrice)) s.recommendedPrice = null; });
-    return parsed;
-  } catch (e) {
-    return defaultState();
-  }
-}
-
-function saveState() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) { /* storage unavailable — ignore, page still works */ }
-}
+let state = defaultState();
 
 /* ------------------------------ Calculations ---------------------------- */
 
@@ -170,8 +147,6 @@ const el = {
   categoryManager: document.getElementById('categoryManager'),
   addServiceBtn: document.getElementById('addServiceBtn'),
   resetBtn: document.getElementById('resetBtn'),
-  exportBtn: document.getElementById('exportBtn'),
-  importInput: document.getElementById('importInput'),
   printBtn: document.getElementById('printBtn'),
   menuSheet: document.getElementById('menuSheet'),
   printSheetWrap: document.getElementById('printSheetWrap'),
@@ -185,7 +160,6 @@ function renderAll() {
   renderCategoryList();
   renderCategoryManager();
   renderMenuSheet(el.menuSheet);
-  saveState();
 }
 
 function renderControls() {
@@ -217,17 +191,30 @@ function renderCategoryManager() {
   state.services.forEach(s => {
     const cat = s.category || '';
     let g = groups.find(x => x.cat === cat);
-    if (!g) { g = { cat, label: cat || 'Sin categoría', count: 0 }; groups.push(g); }
+    if (!g) { g = { cat, label: cat || 'Sin categoría', count: 0, activeCount: 0 }; groups.push(g); }
     g.count++;
+    if (s.active) g.activeCount++;
   });
 
   if (groups.length === 0) { el.categoryManager.innerHTML = ''; return; }
 
-  el.categoryManager.innerHTML = groups.map(g => `
+  el.categoryManager.innerHTML = groups.map(g => {
+    const allActive = g.activeCount === g.count;
+    const someActive = g.activeCount > 0 && !allActive;
+    return `
     <div class="cat-chip">
-      <span>${escapeHtml(g.label)} <em>(${g.count})</em></span>
-      <button type="button" class="cat-del-btn" data-cat="${escapeAttr(g.cat)}" title="Eliminar todos los servicios de &quot;${escapeAttr(g.label)}&quot;">🗑 Eliminar grupo</button>
-    </div>`).join('');
+      <span>${escapeHtml(g.label)} <em>(${g.activeCount}/${g.count})</em></span>
+      <label class="cat-toggle" title="${allActive ? 'Apagar todo el grupo' : 'Encender todo el grupo'}">
+        <input type="checkbox" class="cat-toggle-input" data-cat="${escapeAttr(g.cat)}" ${allActive ? 'checked' : ''} ${someActive ? 'data-indeterminate="1"' : ''}>
+        <span class="cat-toggle-track"></span>
+      </label>
+    </div>`;
+  }).join('');
+
+  // Show the "mixed" state (some on, some off) as a dash on the switch.
+  el.categoryManager.querySelectorAll('.cat-toggle-input[data-indeterminate]').forEach(input => {
+    input.indeterminate = true;
+  });
 }
 
 function renderTable() {
@@ -374,7 +361,6 @@ el.customRateInput.addEventListener('input', () => {
   [...el.rateOptions.children].forEach(btn => btn.dataset.rate && btn.classList.remove('active'));
   el.customRateCard.classList.add('active');
   renderMenuSheet(el.menuSheet);
-  saveState();
 });
 
 el.customRateInput.addEventListener('change', () => renderControls());
@@ -386,8 +372,8 @@ el.themeOptions.addEventListener('click', e => {
   renderAll();
 });
 
-el.salonName.addEventListener('input', () => { state.salonName = el.salonName.value; renderMenuSheet(el.menuSheet); saveState(); });
-el.salonSubtitle.addEventListener('input', () => { state.salonSubtitle = el.salonSubtitle.value; renderMenuSheet(el.menuSheet); saveState(); });
+el.salonName.addEventListener('input', () => { state.salonName = el.salonName.value; renderMenuSheet(el.menuSheet); });
+el.salonSubtitle.addEventListener('input', () => { state.salonSubtitle = el.salonSubtitle.value; renderMenuSheet(el.menuSheet); });
 
 el.servicesBody.addEventListener('input', e => {
   const row = e.target.closest('tr');
@@ -409,11 +395,10 @@ el.servicesBody.addEventListener('input', e => {
   if (field === 'name' || field === 'category' || field === 'color' || field === 'manualPrice') {
     if (field === 'category') { renderCategoryList(); renderCategoryManager(); }
     renderMenuSheet(el.menuSheet);
-    saveState();
   } else {
     renderTable();
+    renderCategoryManager();
     renderMenuSheet(el.menuSheet);
-    saveState();
   }
 });
 
@@ -438,7 +423,7 @@ el.servicesBody.addEventListener('click', e => {
   const s = state.services[idx];
 
   if (delBtn) {
-    if (!confirm(`¿Eliminar "${s.name || 'este servicio'}" del menú?`)) return;
+    if (!confirm(`¿Eliminar "${s.name || 'este servicio'}" del menú? Si solo quieres quitarlo de la carta sin perder sus datos, desmarca su casilla en vez de eliminarlo.`)) return;
     state.services.splice(idx, 1);
   } else if (upBtn && idx > 0) {
     [state.services[idx - 1], state.services[idx]] = [state.services[idx], state.services[idx - 1]];
@@ -454,15 +439,17 @@ el.servicesBody.addEventListener('click', e => {
   renderAll();
 });
 
-el.categoryManager.addEventListener('click', e => {
-  const btn = e.target.closest('.cat-del-btn');
-  if (!btn) return;
-  const cat = btn.dataset.cat;
+// Master switch per category: enciende/apaga de golpe todos los servicios de
+// ese grupo (nunca los borra, así siempre se pueden volver a encender).
+el.categoryManager.addEventListener('change', e => {
+  const input = e.target.closest('.cat-toggle-input');
+  if (!input) return;
+  const cat = input.dataset.cat;
   const affected = state.services.filter(s => (s.category || '') === cat);
   if (affected.length === 0) return;
-  const label = cat || 'Sin categoría';
-  if (!confirm(`¿Eliminar los ${affected.length} servicios de "${label}"? Esta acción no se puede deshacer.`)) return;
-  state.services = state.services.filter(s => (s.category || '') !== cat);
+  const allWereActive = affected.every(s => s.active);
+  const turnOn = !allWereActive; // si estaba todo encendido, apaga; si no, enciende todo
+  affected.forEach(s => { s.active = turnOn; });
   renderAll();
 });
 
@@ -481,59 +468,6 @@ el.resetBtn.addEventListener('click', () => {
   if (!confirm('Esto restablecerá la lista de servicios, tarifa y colores a los valores por defecto. ¿Continuar?')) return;
   state = defaultState();
   renderAll();
-});
-
-el.exportBtn.addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `menu-servicios-muttto-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-});
-
-el.importInput.addEventListener('change', () => {
-  const file = el.importInput.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const parsed = JSON.parse(reader.result);
-      if (!parsed || !Array.isArray(parsed.services)) throw new Error('Formato inválido');
-      const customRate = parseFloat(parsed.customRate);
-      const isCustomMode = parsed.rateMode === 'custom' && Number.isFinite(customRate) && customRate >= 0;
-      state = {
-        rate: isCustomMode ? customRate : (RATES.includes(parsed.rate) ? parsed.rate : 0.85),
-        rateMode: isCustomMode ? 'custom' : 'preset',
-        customRate: isCustomMode ? customRate : null,
-        theme: ['premium', 'pastel', 'minimal'].includes(parsed.theme) ? parsed.theme : 'premium',
-        salonName: parsed.salonName || 'Muttto The Beauty Lab',
-        salonSubtitle: parsed.salonSubtitle || 'Menú de Servicios',
-        services: parsed.services.map(s => {
-          const mp = parseFloat(s.manualPrice);
-          const rp = parseFloat(s.recommendedPrice);
-          return {
-            id: s.id || uid(),
-            name: s.name || 'Servicio',
-            category: s.category || 'Otros',
-            color: s.color || '#a9862e',
-            active: !!s.active,
-            tApp: Number(s.tApp) || 0,
-            tExp: Number(s.tExp) || 0,
-            tWash: Number(s.tWash) || 0,
-            manualPrice: Number.isFinite(mp) ? mp : null,
-            recommendedPrice: Number.isFinite(rp) ? rp : null,
-          };
-        }),
-      };
-      renderAll();
-    } catch (err) {
-      alert('No se ha podido importar el archivo. Comprueba que es un .json exportado desde esta misma herramienta.');
-    }
-    el.importInput.value = '';
-  };
-  reader.readAsText(file);
 });
 
 el.printBtn.addEventListener('click', () => {

@@ -17,7 +17,7 @@
     <img class="topbar-logo" src="assets/logo-muttto.png" alt="Muttto The Beauty Lab">
     <div class="topbar-text">
       <h1>Constructor de Menú de Servicios</h1>
-      <p>Crea, ajusta y exporta el menú de precios de tu salón en minutos.</p>
+      <p>Crea, ajusta y descarga el menú de precios de tu salón en PDF.</p>
     </div>
   </div>
 </header>
@@ -56,7 +56,7 @@
 
     <div class="block">
       <h2>3. Servicios</h2>
-      <p class="hint">Marca los servicios que quieres incluir, indica sus tiempos (en minutos) y edita, renombra, agrupa o crea los que necesites. El precio se calcula solo con la tarifa elegida, pero puedes escribir uno manual en cualquier fila — queda fijo hasta que pulses ↺ para volver al automático. Cuando un servicio ya trae un precio recomendado (del documento de referencia), se indica debajo del precio. Usa ↑ ↓ para ordenar la lista a tu gusto.</p>
+      <p class="hint">Marca los servicios que quieres incluir, indica sus tiempos (en minutos) y edita, renombra, agrupa o crea los que necesites. El precio se calcula solo con la tarifa elegida, pero puedes escribir uno manual en cualquier fila — queda fijo hasta que pulses ↺ para volver al automático. Cuando un servicio ya trae un precio recomendado (del documento de referencia), se indica debajo del precio. Usa ↑ ↓ para ordenar la lista a tu gusto. El interruptor de cada grupo enciende o apaga de golpe todos sus servicios, sin borrarlos.</p>
 
       <div class="category-manager" id="categoryManager"></div>
 
@@ -85,18 +85,6 @@
       <div class="table-actions">
         <button type="button" id="addServiceBtn" class="btn btn-ghost">+ Añadir servicio</button>
         <button type="button" id="resetBtn" class="btn btn-text">Restablecer valores por defecto</button>
-      </div>
-    </div>
-
-    <div class="block">
-      <h2>4. Guardar / compartir tu menú</h2>
-      <p class="hint">Tu menú se guarda automáticamente en este navegador. También puedes exportarlo a un archivo para editarlo en otro equipo o guardarlo como copia de seguridad.</p>
-      <div class="table-actions">
-        <button type="button" id="exportBtn" class="btn btn-ghost">Exportar configuración (.json)</button>
-        <label class="btn btn-ghost file-btn">
-          Importar configuración
-          <input type="file" id="importInput" accept="application/json">
-        </label>
       </div>
     </div>
 
