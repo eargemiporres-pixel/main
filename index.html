@@ -33,6 +33,10 @@
         <button type="button" class="rate-btn" data-rate="0.85">0,85 €/min<span>Base</span></button>
         <button type="button" class="rate-btn" data-rate="0.95">0,95 €/min<span>Media</span></button>
         <button type="button" class="rate-btn" data-rate="1.10">1,10 €/min<span>Premium</span></button>
+        <label class="rate-btn rate-custom" id="customRateCard">
+          Personalizado<span>€/min</span>
+          <input type="number" id="customRateInput" min="0" step="0.01" placeholder="Escribe un precio">
+        </label>
       </div>
     </div>
 
@@ -52,7 +56,9 @@
 
     <div class="block">
       <h2>3. Servicios</h2>
-      <p class="hint">Marca los servicios que quieres incluir, indica sus tiempos (en minutos) y edita, renombra, agrupa o crea los que necesites.</p>
+      <p class="hint">Marca los servicios que quieres incluir, indica sus tiempos (en minutos) y edita, renombra, agrupa o crea los que necesites. El precio se calcula solo con la tarifa elegida, pero puedes escribir uno manual en cualquier fila — queda fijo hasta que pulses ↺ para volver al automático. Cuando un servicio ya trae un precio recomendado (del documento de referencia), se indica debajo del precio. Usa ↑ ↓ para ordenar la lista a tu gusto.</p>
+
+      <div class="category-manager" id="categoryManager"></div>
 
       <div class="table-wrap">
         <table id="servicesTable">
@@ -67,7 +73,7 @@
               <th class="col-time">Lavado<br><span>min</span></th>
               <th class="col-total">Duración</th>
               <th class="col-price">Precio</th>
-              <th class="col-del"></th>
+              <th class="col-actions"></th>
             </tr>
           </thead>
           <tbody id="servicesBody"></tbody>
@@ -125,6 +131,7 @@
           <div id="menuSheet" class="menu-sheet"></div>
         </div>
       </div>
+      <p class="preview-note">El PDF impreso añade, al final, una página con la guía de tiempos de cada servicio para el equipo (no se ve en esta miniatura).</p>
     </div>
   </section>
 
