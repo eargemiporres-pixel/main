@@ -108,6 +108,15 @@ p{margin:0;}
 }
 .rate-btn.active span{color:#cdbf9c;}
 
+.rate-custom input{
+  border:none; background:transparent; padding:0; font-family:inherit;
+  font-weight:600; font-size:.92rem; color:var(--app-text); width:100%; margin-top:2px;
+}
+.rate-custom input::placeholder{color:var(--app-muted); font-weight:400;}
+.rate-custom input:focus{outline:none;}
+.rate-custom.active input{color:#f4ead0;}
+.rate-custom.active input::placeholder{color:#cdbf9c;}
+
 /* ===================== Theme selector ===================== */
 .theme-options{display:flex; flex-direction:column; gap:8px; margin-bottom:16px;}
 .theme-btn{
@@ -167,6 +176,17 @@ tbody tr.is-inactive{opacity:.45;}
   width:24px; height:24px; line-height:1; cursor:pointer; color:var(--app-muted); flex:none;
 }
 .price-reset-btn:hover{border-color:var(--app-accent); color:var(--app-accent-dark);}
+
+.recommended-hint{
+  display:block; margin-top:4px; font-size:.66rem; font-weight:600;
+  white-space:nowrap;
+}
+.recommended-hint.is-active{color:#8a6d1f;}
+.use-recommended-btn{
+  border:none; background:none; color:var(--app-accent-dark); text-decoration:underline;
+  cursor:pointer; padding:0; font-family:inherit;
+}
+.use-recommended-btn:hover{color:var(--app-accent);}
 
 .row-actions{display:flex; align-items:center; justify-content:center; gap:4px;}
 .order-btn, .del-btn{
@@ -367,6 +387,7 @@ tbody tr.is-inactive{opacity:.45;}
   .cell-price{text-align:right;}
   .cell-price .price-cell{justify-content:flex-end;}
   .cell-price .row-price-input{width:72px;}
+  .recommended-hint{white-space:normal; text-align:right;}
 
   td[data-label]::before{
     content:attr(data-label);

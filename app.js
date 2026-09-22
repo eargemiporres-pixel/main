@@ -67,7 +67,9 @@ const DEFAULT_SERVICES = [
   { name: 'Cascada Hidratante', category: 'Servicios Vibbro', color: '#d1495b', active: true, tApp: 45, tExp: 0, tWash: 5, manualPrice: 67.00 },
   { name: 'Elixir Hair & Body', category: 'Servicios Vibbro', color: '#d1495b', active: true, tApp: 60, tExp: 0, tWash: 5, manualPrice: 80.00 },
   { name: 'Mud Experience Scalp & Face', category: 'Servicios Vibbro', color: '#d1495b', active: true, tApp: 60, tExp: 0, tWash: 5, manualPrice: 80.00 },
-].map(withId);
+// Los servicios que ya traían un precio pactado en el documento guardan ese
+// mismo valor como "recomendado", visible aunque luego se edite o se resetee.
+].map(s => ({ ...s, recommendedPrice: s.manualPrice })).map(withId);
 
 function withId(s) { return { id: uid(), ...s }; }
 function uid() { return 'svc_' + Math.random().toString(36).slice(2, 10); }
@@ -75,6 +77,8 @@ function uid() { return 'svc_' + Math.random().toString(36).slice(2, 10); }
 function defaultState() {
   return {
     rate: 0.85,
+    rateMode: 'preset', // 'preset' | 'custom'
+    customRate: null,
     theme: 'premium',
     salonName: 'Muttto The Beauty Lab',
     salonSubtitle: 'Menú de Servicios',
@@ -92,6 +96,10 @@ function loadState() {
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
     if (!parsed || !Array.isArray(parsed.services)) return defaultState();
+    // Backfill fields from earlier versions of the tool so old saved menus keep working.
+    if (parsed.rateMode !== 'preset' && parsed.rateMode !== 'custom') parsed.rateMode = 'preset';
+    if (!Number.isFinite(parsed.customRate)) parsed.customRate = null;
+    parsed.services.forEach(s => { if (!Number.isFinite(s.recommendedPrice)) s.recommendedPrice = null; });
     return parsed;
   } catch (e) {
     return defaultState();
@@ -133,10 +141,27 @@ function formatPrice(v) {
   return v.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
+function hasRecommended(s) { return s.recommendedPrice !== null && s.recommendedPrice !== undefined && !Number.isNaN(s.recommendedPrice); }
+
+// Small caption under the price field for services that came from the
+// reference document with an already-agreed "recomendado" price: shows a
+// badge when the current price matches it, or a one-click button to apply it
+// when the price has since changed (manual edit or reset to automatic).
+function recommendedHint(s, currentPrice) {
+  if (!hasRecommended(s)) return '';
+  const matches = round2(currentPrice) === round2(s.recommendedPrice);
+  if (matches) {
+    return `<div class="recommended-hint is-active" title="Precio recomendado en el documento de referencia">★ Recomendado</div>`;
+  }
+  return `<button type="button" class="recommended-hint use-recommended-btn" data-price="${s.recommendedPrice}">Usar recomendado: ${formatPrice(s.recommendedPrice)}</button>`;
+}
+
 /* --------------------------------- DOM ---------------------------------- */
 
 const el = {
   rateOptions: document.getElementById('rateOptions'),
+  customRateCard: document.getElementById('customRateCard'),
+  customRateInput: document.getElementById('customRateInput'),
   themeOptions: document.getElementById('themeOptions'),
   salonName: document.getElementById('salonName'),
   salonSubtitle: document.getElementById('salonSubtitle'),
@@ -168,8 +193,15 @@ function renderControls() {
   el.salonSubtitle.value = state.salonSubtitle;
 
   [...el.rateOptions.children].forEach(btn => {
-    btn.classList.toggle('active', Number(btn.dataset.rate) === state.rate);
+    if (!btn.dataset.rate) return;
+    btn.classList.toggle('active', state.rateMode === 'preset' && Number(btn.dataset.rate) === state.rate);
   });
+  el.customRateCard.classList.toggle('active', state.rateMode === 'custom');
+  // Don't fight the user's typing: only sync the value when the field isn't focused.
+  if (document.activeElement !== el.customRateInput) {
+    el.customRateInput.value = state.customRate != null ? state.customRate : '';
+  }
+
   [...el.themeOptions.children].forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === state.theme);
   });
@@ -221,6 +253,7 @@ function rowTemplate(s, index, total) {
           <input type="number" min="0" step="0.01" class="row-price-input ${manual ? 'is-manual' : ''}" data-field="manualPrice" value="${p.toFixed(2)}" title="${manual ? 'Precio manual' : 'Precio automático (tarifa × duración)'}">
           ${manual ? '<button type="button" class="price-reset-btn" title="Volver al precio automático">↺</button>' : ''}
         </div>
+        ${recommendedHint(s, p)}
       </td>
       <td class="col-actions">
         <div class="row-actions">
@@ -270,7 +303,7 @@ function renderMenuSheet(target) {
       <p class="ms-subtitle">${escapeHtml(state.salonSubtitle)}</p>
     </div>
     <div class="ms-body">${categoriesHtml}</div>
-    <div class="ms-footer">Tarifa base: ${state.rate.toString().replace('.', ',')} € / min · ${new Date().toLocaleDateString('es-ES')}</div>`;
+    <div class="ms-footer">Tarifa base: ${state.rate.toString().replace('.', ',')} € / min${state.rateMode === 'custom' ? ' (personalizada)' : ''} · ${new Date().toLocaleDateString('es-ES')}</div>`;
 }
 
 function rowHtml(s) {
@@ -293,10 +326,26 @@ function escapeAttr(str) { return escapeHtml(str); }
 
 el.rateOptions.addEventListener('click', e => {
   const btn = e.target.closest('.rate-btn');
-  if (!btn) return;
+  if (!btn || !btn.dataset.rate) return;
+  state.rateMode = 'preset';
   state.rate = Number(btn.dataset.rate);
   renderAll();
 });
+
+el.customRateInput.addEventListener('input', () => {
+  const v = parseFloat(el.customRateInput.value);
+  state.customRate = Number.isFinite(v) && v >= 0 ? v : null;
+  state.rateMode = 'custom';
+  state.rate = state.customRate != null ? state.customRate : state.rate;
+  // Light update: keep focus/caret in the field, sync the rest live.
+  renderTable();
+  [...el.rateOptions.children].forEach(btn => btn.dataset.rate && btn.classList.remove('active'));
+  el.customRateCard.classList.add('active');
+  renderMenuSheet(el.menuSheet);
+  saveState();
+});
+
+el.customRateInput.addEventListener('change', () => renderControls());
 
 el.themeOptions.addEventListener('click', e => {
   const btn = e.target.closest('.theme-btn');
@@ -347,7 +396,8 @@ el.servicesBody.addEventListener('click', e => {
   const upBtn = e.target.closest('.move-up-btn');
   const downBtn = e.target.closest('.move-down-btn');
   const resetBtn = e.target.closest('.price-reset-btn');
-  if (!delBtn && !upBtn && !downBtn && !resetBtn) return;
+  const useRecBtn = e.target.closest('.use-recommended-btn');
+  if (!delBtn && !upBtn && !downBtn && !resetBtn && !useRecBtn) return;
 
   const row = e.target.closest('tr');
   const id = row.dataset.id;
@@ -364,6 +414,8 @@ el.servicesBody.addEventListener('click', e => {
     [state.services[idx], state.services[idx + 1]] = [state.services[idx + 1], state.services[idx]];
   } else if (resetBtn) {
     s.manualPrice = null;
+  } else if (useRecBtn) {
+    s.manualPrice = Number(useRecBtn.dataset.price);
   } else {
     return;
   }
@@ -385,7 +437,7 @@ el.categoryManager.addEventListener('click', e => {
 el.addServiceBtn.addEventListener('click', () => {
   state.services.push({
     id: uid(), name: 'Nuevo servicio', category: 'Otros', color: '#a9862e',
-    active: true, tApp: 15, tExp: 0, tWash: 0, manualPrice: null,
+    active: true, tApp: 15, tExp: 0, tWash: 0, manualPrice: null, recommendedPrice: null,
   });
   renderAll();
   const rows = el.servicesBody.querySelectorAll('tr');
@@ -417,13 +469,18 @@ el.importInput.addEventListener('change', () => {
     try {
       const parsed = JSON.parse(reader.result);
       if (!parsed || !Array.isArray(parsed.services)) throw new Error('Formato inválido');
+      const customRate = parseFloat(parsed.customRate);
+      const isCustomMode = parsed.rateMode === 'custom' && Number.isFinite(customRate) && customRate >= 0;
       state = {
-        rate: RATES.includes(parsed.rate) ? parsed.rate : 0.85,
+        rate: isCustomMode ? customRate : (RATES.includes(parsed.rate) ? parsed.rate : 0.85),
+        rateMode: isCustomMode ? 'custom' : 'preset',
+        customRate: isCustomMode ? customRate : null,
         theme: ['premium', 'pastel', 'minimal'].includes(parsed.theme) ? parsed.theme : 'premium',
         salonName: parsed.salonName || 'Muttto The Beauty Lab',
         salonSubtitle: parsed.salonSubtitle || 'Menú de Servicios',
         services: parsed.services.map(s => {
           const mp = parseFloat(s.manualPrice);
+          const rp = parseFloat(s.recommendedPrice);
           return {
             id: s.id || uid(),
             name: s.name || 'Servicio',
@@ -434,6 +491,7 @@ el.importInput.addEventListener('change', () => {
             tExp: Number(s.tExp) || 0,
             tWash: Number(s.tWash) || 0,
             manualPrice: Number.isFinite(mp) ? mp : null,
+            recommendedPrice: Number.isFinite(rp) ? rp : null,
           };
         }),
       };
