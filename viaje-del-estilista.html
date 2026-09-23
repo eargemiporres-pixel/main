@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="assets/logo-muttto.png">
+<title>El Viaje del Estilista</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#f5f1e8; --surface:#fffdf8; --surface-2:#efe9dc; --line:#e2d9c6;
+  --ink:#241f17; --muted:#766d5e; --gold:#a9862e; --gold-ink:#7c611f;
+  --forest:#1c2b20; --forest-ink:#f4ead0; --road:#ddd3bf; --road-dash:#fffdf8;
+  --hi:#fbf3dc; --hi-line:#d9bd72;
+  --guia-bg:#efe3c3; --guia:#6f561b;
+  --est-bg:#d3eae1; --est:#1f5a48;
+  --luis-bg:#f3d6d2; --luis:#8a3b30;
+  --due-bg:#e5dcf3; --due:#58407e;
+  --eq-bg:#d8e5f5; --eq:#2c4f78;
+  --alm-bg:#e4e1da; --alm:#55524b;
+  --mkt-bg:#f8dcc4; --mkt:#8a4a17;
+  --mod-bg:#f5d6e5; --mod:#8a2f5e;
+  --display:"Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  --body:"Jost", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#15130f; --surface:#1f1c16; --surface-2:#2a261e; --line:#3a3428;
+    --ink:#efe7d6; --muted:#a99f8b; --gold:#d3b262; --gold-ink:#e2c579;
+    --forest:#26382b; --forest-ink:#f4ead0; --road:#3a3428; --road-dash:#15130f;
+    --hi:#2a2415; --hi-line:#7d6630;
+    --guia-bg:#3d331a; --guia:#ecd598;
+    --est-bg:#193a30; --est:#a6dcc8;
+    --luis-bg:#452521; --luis:#f1b8ae;
+    --due-bg:#33284a; --due:#d3c3f0;
+    --eq-bg:#1f3048; --eq:#b6d0f1;
+    --alm-bg:#34322d; --alm:#d4d0c6;
+    --mkt-bg:#4a2e16; --mkt:#f5c79c;
+    --mod-bg:#472237; --mod:#f2b6d3;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#15130f; --surface:#1f1c16; --surface-2:#2a261e; --line:#3a3428;
+  --ink:#efe7d6; --muted:#a99f8b; --gold:#d3b262; --gold-ink:#e2c579;
+  --forest:#26382b; --forest-ink:#f4ead0; --road:#3a3428; --road-dash:#15130f;
+  --hi:#2a2415; --hi-line:#7d6630;
+  --guia-bg:#3d331a; --guia:#ecd598;
+  --est-bg:#193a30; --est:#a6dcc8;
+  --luis-bg:#452521; --luis:#f1b8ae;
+  --due-bg:#33284a; --due:#d3c3f0;
+  --eq-bg:#1f3048; --eq:#b6d0f1;
+  --alm-bg:#34322d; --alm:#d4d0c6;
+  --mkt-bg:#4a2e16; --mkt:#f5c79c;
+  --mod-bg:#472237; --mod:#f2b6d3;
+}
+
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--ink); font-family:var(--body); font-size:15px; line-height:1.5; padding-inline:clamp(16px,4vw,48px); padding-block:32px 56px}
+.wrap{max-width:1180px; margin:0 auto; display:flex; flex-direction:column; gap:56px}
+h1,h2,h3{font-family:var(--display); font-weight:600; margin:0; text-wrap:balance; line-height:1.1}
+p{margin:0}
+.eyebrow{font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold-ink); font-weight:600}
+.muted{color:var(--muted)}
+svg.i{width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; flex:none}
+
+/* Header */
+header{display:flex; flex-direction:column; gap:14px}
+header h1{font-size:clamp(40px,6vw,68px); letter-spacing:-.01em}
+header h1 em{font-style:italic; color:var(--gold-ink); font-weight:500}
+.lead{font-size:18px; max-width:62ch; color:var(--muted)}
+.facts{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-top:12px}
+.fact{border-top:2px solid var(--gold); padding-top:10px; display:flex; flex-direction:column; gap:2px}
+.fact b{font-family:var(--display); font-size:26px; font-weight:600; line-height:1.1}
+.fact span{font-size:13px; color:var(--muted)}
+
+/* Section titles */
+.sec-head{display:flex; flex-direction:column; gap:6px; margin-bottom:20px}
+.sec-head h2{font-size:clamp(28px,3.4vw,38px)}
+.sec-head p{color:var(--muted); max-width:65ch}
+
+/* Map */
+.map-box{background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:20px 12px 8px; overflow-x:auto}
+.map{display:block; width:100%; min-width:960px; height:auto}
+.map text{font-family:var(--body); fill:var(--ink)}
+.map .lbl{font-size:14px; font-weight:500}
+.map .day{font-size:12px; fill:var(--muted)}
+.map .num{font-family:var(--display); font-size:20px; font-weight:600}
+.map .band-t{font-size:11px; letter-spacing:.16em; font-weight:600}
+.map a{cursor:pointer}
+.map a:hover circle.st, .map a:focus circle.st{stroke:var(--gold); stroke-width:3}
+.map a:focus{outline:none}
+.hint-scroll{font-size:12px; color:var(--muted); margin-top:8px; text-align:center}
+@media (min-width:1000px){.hint-scroll{display:none}}
+
+/* Cast */
+.cast{display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px}
+.who{display:flex; gap:12px; align-items:center; padding:10px 12px; background:var(--surface); border:1px solid var(--line); border-radius:14px}
+.who b{display:block; font-weight:600}
+.who span{font-size:13px; color:var(--muted)}
+.av{width:36px; height:36px; border-radius:50%; display:grid; place-items:center; font-size:12px; font-weight:600; flex:none; letter-spacing:.02em}
+.av.sm{width:28px; height:28px; font-size:10.5px}
+.av.lead{box-shadow:0 0 0 2px var(--surface), 0 0 0 3.5px currentColor}
+.r-guia{background:var(--guia-bg); color:var(--guia)}
+.r-est{background:var(--est-bg); color:var(--est)}
+.r-luis{background:var(--luis-bg); color:var(--luis)}
+.r-due{background:var(--due-bg); color:var(--due)}
+.r-eq{background:var(--eq-bg); color:var(--eq)}
+.r-alm{background:var(--alm-bg); color:var(--alm)}
+.r-mkt{background:var(--mkt-bg); color:var(--mkt)}
+.r-mod{background:var(--mod-bg); color:var(--mod)}
+.note{margin-top:14px; font-size:14px; color:var(--muted); display:flex; gap:8px; align-items:flex-start}
+.note svg{color:var(--gold-ink); margin-top:1px}
+
+/* Phases & stops */
+.phase{display:flex; flex-direction:column; gap:14px}
+.phase + .phase{margin-top:36px}
+.phase-tag{align-self:flex-start; font-size:11px; letter-spacing:.18em; text-transform:uppercase; font-weight:600; padding:7px 14px; border-radius:999px; background:var(--surface-2); color:var(--gold-ink)}
+.phase-tag.dark{background:var(--forest); color:var(--forest-ink)}
+.stops{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px}
+@media (min-width:1060px){.stop.wide{grid-column:span 2} .stop.close{grid-column:1/-1} .stop.close ul.acts{display:grid; grid-template-columns:1fr 1fr; column-gap:28px}}
+.stop{background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:12px; scroll-margin-top:20px}
+.stop:target{border-color:var(--gold); box-shadow:0 0 0 3px var(--hi)}
+.stop-top{display:flex; gap:12px; align-items:flex-start}
+.badge{width:44px; height:44px; border-radius:12px; background:var(--surface-2); color:var(--gold-ink); display:grid; place-items:center; flex:none}
+.badge svg.i{width:24px; height:24px}
+.stop-title{display:flex; flex-direction:column; gap:2px; min-width:0}
+.stop-title small{font-family:var(--display); font-size:17px; color:var(--gold-ink); font-weight:600; line-height:1}
+.stop-title h3{font-size:24px}
+.meta{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px; color:var(--muted)}
+.meta span{display:inline-flex; gap:5px; align-items:center}
+.meta svg.i{width:15px; height:15px}
+.meta .when{background:var(--surface-2); color:var(--ink); font-weight:600; padding:3px 10px; border-radius:999px}
+.people{display:flex; flex-wrap:wrap; gap:14px; align-items:center; font-size:12px; color:var(--muted)}
+.people .grp{display:flex; align-items:center; gap:6px}
+.people .grp > div{display:flex; gap:4px}
+ul.acts{margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:7px}
+ul.acts li{position:relative; padding-left:16px; font-size:14.5px}
+ul.acts li::before{content:""; position:absolute; left:2px; top:.62em; width:6px; height:6px; border-radius:50%; background:var(--gold)}
+ul.acts li b{font-weight:600}
+.reserve{margin-top:auto; border-top:1px dashed var(--line); padding-top:10px; display:flex; gap:8px; align-items:center; font-size:13px}
+.reserve em{font-style:normal; color:var(--muted)}
+.feel{font-family:var(--display); font-style:italic; font-size:17px; line-height:1.35; color:var(--due); background:var(--due-bg); padding:10px 12px; border-radius:10px}
+.feel.eq{color:var(--eq); background:var(--eq-bg)}
+
+/* Split-day (05) */
+.split{display:grid; grid-template-columns:1fr 1fr; gap:6px}
+.split div{background:var(--surface-2); border-radius:10px; padding:8px 10px; font-size:13px}
+.split div b{display:block; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold-ink)}
+
+/* Big day */
+.big{grid-column:1/-1; background:var(--hi); border:1.5px solid var(--hi-line); padding:clamp(18px,3vw,28px); gap:18px}
+.big .badge{background:var(--gold); color:var(--surface); width:52px; height:52px}
+.big .stop-title h3{font-size:clamp(26px,3vw,34px)}
+.big-intro{font-size:16px; max-width:70ch}
+.dayline{display:grid; grid-template-columns:3fr 4fr 2fr; gap:0; border-radius:14px; overflow:hidden; border:1px solid var(--hi-line)}
+.seg{background:var(--surface); padding:16px; display:flex; flex-direction:column; gap:10px}
+.seg + .seg{border-left:1px dashed var(--hi-line)}
+.seg-h{display:flex; flex-direction:column; gap:3px}
+.seg-h .t{font-size:11px; letter-spacing:.16em; text-transform:uppercase; font-weight:600; color:var(--gold-ink)}
+.seg-h h4{margin:0; font-family:var(--display); font-size:22px; font-weight:600; line-height:1.1}
+.seg-h .st{display:inline-flex; gap:6px; align-items:center; font-size:12.5px; font-weight:500; align-self:flex-start; padding:3px 9px; border-radius:999px}
+.st.closed{background:var(--luis-bg); color:var(--luis)}
+.st.open{background:var(--est-bg); color:var(--est)}
+.st.end{background:var(--mkt-bg); color:var(--mkt)}
+.steps4{display:grid; grid-template-columns:repeat(2,1fr); gap:6px; counter-reset:s}
+.steps4 span{counter-increment:s; font-size:12.5px; background:var(--surface-2); border-radius:8px; padding:6px 8px; line-height:1.3}
+.steps4 span::before{content:counter(s) " · "; font-weight:600; color:var(--gold-ink)}
+.x3{font-family:var(--display); font-size:44px; font-weight:600; line-height:1; color:var(--est)}
+.presence{display:flex; align-items:center; gap:10px; background:var(--est-bg); color:var(--est); padding:10px 14px; font-size:14px; font-weight:500; grid-column:1/-1; border-top:1px solid var(--hi-line)}
+.presence .bar{flex:1; height:4px; border-radius:2px; background:currentColor; opacity:.35}
+.call{display:flex; gap:10px; align-items:flex-start; background:var(--mkt-bg); color:var(--mkt); border-radius:10px; padding:10px 12px; font-size:14px}
+.call b{font-weight:600}
+.flex-note{display:flex; gap:10px; align-items:flex-start; font-size:14px; color:var(--muted)}
+.flex-note svg{color:var(--gold-ink)}
+
+footer{border-top:1px solid var(--line); padding-top:16px; font-size:13px; color:var(--muted); display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px}
+
+@media (max-width:760px){
+  .dayline{grid-template-columns:1fr}
+  .seg + .seg{border-left:0; border-top:1px dashed var(--hi-line)}
+  .stops{grid-template-columns:1fr}
+}
+@media (max-width:420px){.split{grid-template-columns:1fr} .steps4{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
+  <symbol id="i-laptop" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2 19h20"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M8.5 12h7M8.5 16h4.5"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M10 6h10M10 12h10M10 18h10"/><path d="M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5M3.5 18l1.5 1.5 2.5-2.5"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M2 6h11v10H2zM13 9h4.5L21 12.5V16h-8"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+  <symbol id="i-store" viewBox="0 0 24 24"><path d="M4 10v10h16V10"/><path d="M3 10l2-6h14l2 6c0 1.5-1.2 2.5-2.6 2.5S16 11.5 16 10c0 1.5-1.4 2.5-2.8 2.5S10.5 11.5 10.5 10c0 1.5-1.3 2.5-2.7 2.5S5 11.5 5 10"/><path d="M10 20v-5h4v5"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16.5 9.5"/></symbol>
+  <symbol id="i-loop" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8.5"/><path d="M20 4v4.5h-4.5"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 15.5"/><path d="M4 20v-4.5h4.5"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 3h4l2 5-2.5 1.5a11 11 0 0 0 6 6L16 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24"><path d="M7 11V6a1.5 1.5 0 0 1 3 0v5M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V5.5a1.5 1.5 0 0 1 3 0V12M16 9.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L4.3 14a1.5 1.5 0 0 1 2.4-1.8L8 14"/></symbol>
+</svg>
+
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">Muttto · The Beauty Lab · Onboarding</span>
+  <h1>El Viaje <em>del Estilista</em></h1>
+  <p class="lead">Así acompañamos a un salón en su primer año con nosotros: desde que la dueña firma hasta que el equipo trabaja el nuevo menú sin ayuda. Diez paradas, cada una con su responsable.</p>
+  <div class="facts">
+    <div class="fact"><b>Día 0</b><span>La dueña firma</span></div>
+    <div class="fact"><b>Día 5 – 6</b><span>El Despertar del equipo</span></div>
+    <div class="fact"><b>Día 7 – 8</b><span>El gran día en el salón</span></div>
+    <div class="fact"><b>10 días</b><span>Máximo para cerrar el onboarding</span></div>
+  </div>
+</header>
+
+<section aria-labelledby="map-h">
+  <div class="sec-head">
+    <span class="eyebrow">De un vistazo</span>
+    <h2 id="map-h">El camino completo</h2>
+    <p>Pulsa cualquier parada para ver el detalle más abajo.</p>
+  </div>
+  <div class="map-box">
+    <svg class="map" id="map" viewBox="0 0 1160 262" role="img" aria-label="Mapa del viaje: 10 paradas desde la venta hasta la continuidad"></svg>
+  </div>
+  <p class="hint-scroll">Desliza para ver el camino completo →</p>
+</section>
+
+<section aria-labelledby="cast-h">
+  <div class="sec-head">
+    <span class="eyebrow">Quién es quién</span>
+    <h2 id="cast-h">Las personas del viaje</h2>
+  </div>
+  <div class="cast" id="cast"></div>
+  <p class="note"><svg class="i"><use href="#i-hand"/></svg><span>El Guía y la Estilista no se pasan la clienta: colaboran a diario. En cada parada, el círculo con borde es quien la lleva.</span></p>
+</section>
+
+<section aria-labelledby="stops-h">
+  <div class="sec-head">
+    <span class="eyebrow">Parada a parada</span>
+    <h2 id="stops-h">Qué pasa, cuándo y quién lo hace</h2>
+  </div>
+  <div id="phases"></div>
+</section>
+
+<footer>
+  <span>Customer Journey Map · Versión 1 · Septiembre 2026 · Borrador</span>
+  <span>Las emociones de la dueña y del equipo están por completar a partir de la parada 02.</span>
+</footer>
+
+</div>
+
+<script>
+const ROLES = {
+  guia:{n:"Guía", ab:"G", d:"Negocio: precios, números y pedidos"},
+  est:{n:"Estilista", ab:"Es", d:"Técnica y producto Tecna"},
+  luis:{n:"Luis", ab:"L", d:"CEO, dirige el Despertar"},
+  due:{n:"Dueña", ab:"D", d:"La clienta"},
+  eq:{n:"Equipo", ab:"Eq", d:"Estilistas del salón"},
+  alm:{n:"Almacén", ab:"A", d:"Albarán, pago y envío"},
+  mkt:{n:"MKT", ab:"M", d:"Graba el testimonio"},
+  mod:{n:"Modelos", ab:"Mo", d:"Demostración en el Despertar"}
+};
+
+const STOPS = [
+  {id:"m01", n:"01", t:"Venta y firma", short:"Venta y firma", icon:"pen", when:"Día 0", where:"Presencial · salón de la clienta o muttto", phase:0,
+   lead:["guia"], with:["due"], reserve:"2 horas",
+   acts:["Sesión de consultoría de negocio para cerrar la venta.",
+         "La dueña <b>firma</b> y se compromete con el primer pedido y la forma de pago.",
+         "Se recogen sus datos de factura (solo se envía con la forma de pago).",
+         "Guía y dueña hacen el <b>primer pedido</b>; lo tramita Almacén.",
+         "Se agenda el Diagnóstico y se le explican los próximos pasos."],
+   feel:"Incertidumbre: esperanzada pero con miedo. Sabe que el cambio es para mejor.", feelEq:"El equipo aún no sabe nada."},
+  {id:"m02", n:"02", t:"Arranque", short:"Arranque", icon:"laptop", when:"Día 0 – 1", where:"Online", phase:1,
+   lead:["guia"], with:["due","eq"], reserve:"Responder los formularios antes de la 1ª visita",
+   acts:["Crear la carpeta de la clienta en Drive con sus Preguntas de diagnóstico.",
+         "Enviar el <b>formulario de la dueña</b> (precios, menú y tiempos) y el <b>del equipo</b>.",
+         "Explicar a la dueña qué va a pasar."]},
+  {id:"m03", n:"03", t:"Diagnóstico y bienvenida", short:"Diagnóstico", icon:"clip", when:"Día 2 – 3", where:"Presencial · en el salón, cerrado", phase:1,
+   lead:["guia"], with:["due","eq"], reserve:"1 h 30 min con el salón cerrado",
+   acts:["Antes de ir: revisar las respuestas de los formularios.",
+         "<b>Con la dueña (1 h):</b> preguntas de diagnóstico, anotadas en su documento.",
+         "<b>Con el equipo (30 min):</b> qué va a pasar a partir de ahora.",
+         "Pactar la fecha del Despertar y enviar al equipo la formación intro de Tecna."]},
+  {id:"m04", n:"04", t:"Preparación del Despertar", short:"Preparación", icon:"list", when:"Día 3 – 5", where:"Interno · muttto", phase:1,
+   lead:["guia","est"], with:["luis","mod"], reserve:"Bloquear el día completo del Despertar",
+   acts:["<b>Guía:</b> confirma que Luis y la Estilista pueden ese día.",
+         "<b>Guía, 1–2 días antes:</b> comprueba que todos han respondido. Si falta información, aplaza el Despertar 1–2 días.",
+         "<b>Estilista:</b> revisa el formulario del equipo, prepara producto y demostraciones y busca 4 modelos (color NCC, color Tsuyo, matiz, mechas).",
+         "<b>Guía:</b> lleva un primer boceto del menú de servicios."]},
+  {id:"m05", n:"05", t:"El Despertar del equipo", short:"El Despertar", icon:"spark", when:"Día 5 – 6", where:"Presencial · oficinas / sala de muttto", phase:1,
+   lead:["luis","est","guia"], with:["due","eq","mod","alm"], reserve:"Día completo con el salón cerrado", split:true, cls:"wide",
+   acts:["<b>Guía y dueña</b> crean el menú de servicios (servicios, tiempos, coste por minuto y precio) y se entrega en PDF.",
+         "La Estilista cierra con los próximos pasos."]},
+  {id:"m06", n:"06", t:"Entre el Despertar y la instalación", short:"Envío y guía", icon:"truck", when:"Día 6 – 7", where:"Online · almacén", phase:1,
+   lead:["alm","est","guia"], with:["due","eq"], reserve:"Ver la guía grabada",
+   acts:["<b>Almacén:</b> albarán, pago y envío del pedido. Llega en unos 2 días, el día pactado.",
+         "<b>Guía:</b> envía la guía grabada «Primeros pasos con Tecna»; dueña y equipo la ven antes de la instalación.",
+         "<b>Guía:</b> confirma que el pedido está en camino y que el salón ha reservado las 3 h."]},
+  {id:"m07", n:"07 · 08", t:"El gran día en el salón", short:"El gran día", icon:"store", when:"Día 7 – 8", where:"Presencial · en el salón", phase:1, big:true,
+   lead:["est"], with:["due","eq","mkt","guia"]},
+  {id:"m09", n:"09", t:"Plan de acción y cierre", short:"Plan de acción", icon:"target", when:"Día 10", where:"Presencial · en el salón", phase:1,
+   lead:["guia"], with:["due"], reserve:"60 minutos", cls:"close",
+   acts:["El Guía prepara el roadmap con el diagnóstico y el Documento madre.",
+         "<b>Reunión de 60 min:</b> presenta el plan de acción y fija objetivos a 3 meses y a 1 año.",
+         "Arranca el Excel de números del salón (interno): se rellena por primera vez.",
+         "<b>Cierre del onboarding.</b>"]},
+  {id:"m10", n:"10", t:"Validación", short:"Validación", icon:"check", when:"Semanas 2 – 3", where:"Presencial · en el salón + WhatsApp", phase:2,
+   lead:["est"], with:["eq","due","guia"], reserve:"El tiempo de cada visita",
+   acts:["<b>Estilista:</b> mínimo 2 visitas, 1 por semana. Comprueba que el equipo trabaja el menú solo y corrige en directo.",
+         "Si están verdes, repite el roleplay. Responde las dudas por WhatsApp.",
+         "<b>Guía:</b> revisa las cuentas del salón, qué empleado se ha adaptado y qué se ha cumplido del plan."]},
+  {id:"m11", n:"11", t:"Continuidad", short:"Continuidad", icon:"loop", when:"Meses 1 – 3", where:"Presencial en el salón + a distancia", phase:2,
+   lead:["guia","est"], with:["due","eq","alm"], reserve:"1 visita al mes de cada uno",
+   acts:["<b>Guía:</b> 1 visita al mes. Revisa plan y números, tramita pedidos e informa de formaciones.",
+         "<b>Estilista:</b> pregunta cada semana por la técnica, detecta fugas, hace 1 visita al mes y pide fotos de los tratamientos.",
+         "Revisión semanal conjunta del estado de cada salón.",
+         "Formaciones en el espacio formativo de muttto."]}
+];
+
+const PHASES = [
+  {t:"Antes de empezar", cls:""},
+  {t:"Onboarding · máximo 10 días desde la firma", cls:"dark"},
+  {t:"Después del onboarding", cls:""}
+];
+
+const ic = (n, cls="i") => `<svg class="${cls}"><use href="#i-${n}"/></svg>`;
+const av = (r, lead, sm=true) => `<span class="av ${sm?"sm":""} r-${r} ${lead?"lead":""}" title="${ROLES[r].n}${lead?" (responsable)":""}">${ROLES[r].ab}</span>`;
+
+/* ---------- Map ---------- */
+(function drawMap(){
+  const svg = document.getElementById("map");
+  const X = i => 70 + i*113, Y = 150;
+  let s = "";
+  // phase bands
+  const bands = [[16,122,"ANTES",false],[130,913,"ONBOARDING · MÁXIMO 10 DÍAS",true],[921,1144,"DESPUÉS",false]];
+  bands.forEach(([a,b,t,dark])=>{
+    s += `<rect x="${a}" y="18" width="${b-a}" height="28" rx="14" style="fill:var(${dark?"--forest":"--surface-2"})"/>`;
+    s += `<text class="band-t" x="${(a+b)/2}" y="36.5" text-anchor="middle" style="fill:var(${dark?"--forest-ink":"--gold-ink"})">${t}</text>`;
+  });
+  // road
+  s += `<path d="M20 ${Y} H917" style="stroke:var(--road)" stroke-width="22" stroke-linecap="round" fill="none"/>`;
+  s += `<path d="M20 ${Y} H917" style="stroke:var(--road-dash)" stroke-width="2" stroke-dasharray="8 10" fill="none"/>`;
+  s += `<path d="M917 ${Y} H1140" style="stroke:var(--road)" stroke-width="22" stroke-linecap="round" fill="none" opacity=".55"/>`;
+  s += `<path d="M917 ${Y} H1140" style="stroke:var(--road-dash)" stroke-width="2" stroke-dasharray="3 7" fill="none"/>`;
+  STOPS.forEach((st,i)=>{
+    const x = X(i), r = st.big ? 36 : 27;
+    const role = st.lead[0];
+    s += `<a href="#${st.id}" aria-label="${st.n} ${st.t}">`;
+    if (st.big){
+      s += `<rect x="${x-58}" y="66" width="116" height="24" rx="12" style="fill:var(--est-bg)"/>`;
+      s += `<text x="${x}" y="82.5" text-anchor="middle" style="fill:var(--est);font-size:12px;font-weight:600">×2 – ×3 facturación</text>`;
+      s += `<circle cx="${x}" cy="${Y}" r="${r+7}" style="fill:none;stroke:var(--gold)" stroke-width="1.5" stroke-dasharray="3 4"/>`;
+    }
+    s += `<circle class="st" cx="${x}" cy="${Y}" r="${r}" style="fill:var(${st.big?"--gold":"--surface"});stroke:var(--${role==="guia"?"guia":role})" stroke-width="2"/>`;
+    s += `<svg x="${x-12}" y="${Y-12}" width="24" height="24" viewBox="0 0 24 24" style="color:var(${st.big?"--surface":"--gold-ink"})" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><use href="#i-${st.icon}"/></svg>`;
+    s += `<text class="num" x="${x}" y="${Y-r-12}" text-anchor="middle" style="fill:var(--gold-ink)">${st.n}</text>`;
+    s += `<text class="lbl" x="${x}" y="${Y+r+26}" text-anchor="middle">${st.short}</text>`;
+    s += `<text class="day" x="${x}" y="${Y+r+44}" text-anchor="middle">${st.when}</text>`;
+    if (st.big) s += `<text class="day" x="${x}" y="${Y+r+60}" text-anchor="middle">07 + 08 · mismo día</text>`;
+    s += `</a>`;
+  });
+  svg.innerHTML = s;
+})();
+
+/* ---------- Cast ---------- */
+document.getElementById("cast").innerHTML = Object.keys(ROLES).map(k =>
+  `<div class="who">${av(k,false,false)}<div><b>${ROLES[k].n}</b><span>${ROLES[k].d}</span></div></div>`).join("");
+
+/* ---------- Stops ---------- */
+function people(st){
+  return `<div class="people">
+    <div class="grp">Lo lleva <div>${st.lead.map(r=>av(r,true)).join("")}</div></div>
+    <div class="grp">Intervienen <div>${st.with.map(r=>av(r,false)).join("")}</div></div>
+  </div>`;
+}
+function head(st){
+  return `<div class="stop-top"><div class="badge">${ic(st.icon)}</div>
+    <div class="stop-title"><small>${st.n}</small><h3>${st.t}</h3></div></div>
+    <div class="meta"><span class="when">${st.when}</span><span>${ic("pin")}${st.where}</span></div>`;
+}
+function card(st){
+  if (st.big) return bigCard(st);
+  return `<article class="stop ${st.cls||""}" id="${st.id}">
+    ${head(st)}
+    ${people(st)}
+    ${st.split ? `<div class="split">
+        <div><b>Parte emocional</b>Dueña y equipo toman conciencia de sus patrones y cambian de identidad. La dirige Luis.</div>
+        <div><b>Parte técnica</b>Mañana: coloración (4 h).<br>Tarde: spa, cuero cabelludo y Kendy (3 h).</div>
+      </div>` : ""}
+    <ul class="acts">${st.acts.map(a=>`<li>${a}</li>`).join("")}</ul>
+    ${st.feel ? `<p class="feel">«${st.feel}»</p><p class="feel eq">${st.feelEq}</p>` : ""}
+    <div class="reserve">${ic("clock")}<span><em>El salón reserva:</em> ${st.reserve}</span></div>
+  </article>`;
+}
+function bigCard(st){
+  return `<article class="stop big" id="${st.id}">
+    ${head(st)}
+    <p class="big-intro">Instalación del menú y primer día facturando. <b>Normalmente ocurren el mismo día:</b> la Estilista pasa la jornada completa en el salón, de la apertura de cajas al testimonio final.</p>
+    ${people(st)}
+    <div class="dayline">
+      <div class="seg">
+        <div class="seg-h"><span class="t">Mañana · 07</span><h4>Instalación del menú</h4><span class="st closed">${ic("clock")}3 h con el salón cerrado</span></div>
+        <ul class="acts">
+          <li>Abrir las cajas con el equipo y colocar el producto de forma bonita.</li>
+          <li>Formar al equipo en cada producto.</li>
+          <li>Roleplay en 4 pasos:</li>
+        </ul>
+        <div class="steps4"><span>Yo lo hago</span><span>Lo hacemos juntos</span><span>Lo hacéis y miro</span><span>Lo hacéis solos</span></div>
+        <ul class="acts"><li>Crea el grupo de WhatsApp para recibir fotos y dudas.</li></ul>
+      </div>
+      <div class="seg">
+        <div class="seg-h"><span class="t">Resto del día · 08</span><h4>Primer día facturando</h4><span class="st open">${ic("store")}Salón abierto con clientas</span></div>
+        <ul class="acts">
+          <li>La Estilista acompaña al equipo atendiendo a las clientas con el nuevo menú.</li>
+          <li>El salón trabaja un día de agenda normal.</li>
+        </ul>
+        <div><div class="x3">×2 – ×3</div><span class="muted">La facturación del día se duplica o triplica.</span></div>
+      </div>
+      <div class="seg">
+        <div class="seg-h"><span class="t">Al cerrar</span><h4>Cifra y testimonio</h4><span class="st end">${ic("check")}Final de la jornada</span></div>
+        <ul class="acts">
+          <li>La dueña confirma la cifra a la Estilista y ella la comparte con el Guía.</li>
+        </ul>
+        <div class="call">${ic("phone")}<span><b>La Estilista llama al equipo de MKT</b>, que viene a grabar el testimonio de la dueña.</span></div>
+      </div>
+      <div class="presence">${ic("hand")}<span>La Estilista está en el salón todo el día</span><span class="bar" aria-hidden="true"></span></div>
+    </div>
+    <p class="flex-note">${ic("info")}<span>Si no da tiempo, se reparte en 2 días (instalación un día y facturación el siguiente) o se hace una nueva sesión lo antes posible.</span></p>
+  </article>`;
+}
+
+document.getElementById("phases").innerHTML = PHASES.map((p,pi)=>`
+  <div class="phase">
+    <span class="phase-tag ${p.cls}">${p.t}</span>
+    <div class="stops">${STOPS.filter(s=>s.phase===pi).map(card).join("")}</div>
+  </div>`).join("");
+</script>
+</body>
+</html>
