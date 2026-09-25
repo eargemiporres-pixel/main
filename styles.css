@@ -199,6 +199,16 @@ p{margin:0;}
 .del-btn:hover{background:#fbe6e3;}
 .check-input{transform:scale(1.15); cursor:pointer;}
 
+.drag-handle{
+  cursor:grab; color:var(--app-muted); font-size:1rem; padding:4px 5px;
+  border-radius:6px; line-height:1; user-select:none; touch-action:none;
+}
+.drag-handle:hover{background:#f0ece2; color:var(--app-text);}
+.drag-handle:active{cursor:grabbing;}
+tr.is-dragging{opacity:.4;}
+tr.drag-over-above{box-shadow:inset 0 2px 0 0 var(--app-accent);}
+tr.drag-over-below{box-shadow:inset 0 -2px 0 0 var(--app-accent);}
+
 .table-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;}
 
 /* ===================== Category manager (encender/apagar grupo) ===================== */
@@ -406,6 +416,9 @@ p{margin:0;}
   .row-actions{gap:2px;}
   .order-btn{font-size:1rem; padding:6px 6px;}
   .del-btn{font-size:1.1rem; padding:6px 8px;}
+  /* El arrastrar y soltar HTML5 no funciona bien por táctil: en móvil solo
+     quedan las flechas ↑ ↓, que ya son cómodas de tocar. */
+  .drag-handle{display:none;}
 
   .col-cat{order:5; flex:1 1 100%;}
   .row-cat-input{min-width:0;}

@@ -244,6 +244,7 @@ function rowTemplate(s, index, total) {
       </td>
       <td class="col-actions">
         <div class="row-actions">
+          <span class="drag-handle" draggable="true" title="Arrastrar para reordenar">⠿</span>
           <button type="button" class="order-btn move-up-btn" title="Subir" ${index === 0 ? 'disabled' : ''}>↑</button>
           <button type="button" class="order-btn move-down-btn" title="Bajar" ${index === total - 1 ? 'disabled' : ''}>↓</button>
           <button type="button" class="del-btn" title="Eliminar servicio">✕</button>
@@ -436,6 +437,69 @@ el.servicesBody.addEventListener('click', e => {
   } else {
     return;
   }
+  renderAll();
+});
+
+/* Arrastrar y soltar para reordenar servicios (p.ej. subir un corte nuevo
+   hasta el grupo de cortes). Se agarra por el asa "⠿"; el resto de la fila
+   (inputs, botones) sigue funcionando con normalidad. */
+let dragSrcId = null;
+
+function clearDragMarkers() {
+  el.servicesBody.querySelectorAll('.drag-over-above, .drag-over-below').forEach(r => {
+    r.classList.remove('drag-over-above', 'drag-over-below');
+  });
+}
+
+el.servicesBody.addEventListener('dragstart', e => {
+  const handle = e.target.closest('.drag-handle');
+  const row = e.target.closest('tr');
+  if (!handle || !row) { e.preventDefault(); return; }
+  dragSrcId = row.dataset.id;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragSrcId);
+  // Muestra la fila entera como imagen de arrastre, no solo el asa.
+  if (e.dataTransfer.setDragImage) e.dataTransfer.setDragImage(row, 16, 16);
+  row.classList.add('is-dragging');
+});
+
+el.servicesBody.addEventListener('dragend', () => {
+  el.servicesBody.querySelectorAll('.is-dragging').forEach(r => r.classList.remove('is-dragging'));
+  clearDragMarkers();
+  dragSrcId = null;
+});
+
+el.servicesBody.addEventListener('dragover', e => {
+  if (!dragSrcId) return;
+  const row = e.target.closest('tr');
+  if (!row || row.dataset.id === dragSrcId) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const rect = row.getBoundingClientRect();
+  const isBelow = (e.clientY - rect.top) > rect.height / 2;
+  clearDragMarkers();
+  row.classList.add(isBelow ? 'drag-over-below' : 'drag-over-above');
+});
+
+el.servicesBody.addEventListener('drop', e => {
+  if (!dragSrcId) return;
+  const row = e.target.closest('tr');
+  if (!row) return;
+  e.preventDefault();
+  const targetId = row.dataset.id;
+  if (targetId === dragSrcId) return;
+  const rect = row.getBoundingClientRect();
+  const isBelow = (e.clientY - rect.top) > rect.height / 2;
+
+  const fromIdx = state.services.findIndex(s => s.id === dragSrcId);
+  if (fromIdx === -1) return;
+  const [moved] = state.services.splice(fromIdx, 1);
+  let toIdx = state.services.findIndex(s => s.id === targetId);
+  if (toIdx === -1) { state.services.splice(fromIdx, 0, moved); return; }
+  state.services.splice(isBelow ? toIdx + 1 : toIdx, 0, moved);
+
+  clearDragMarkers();
+  dragSrcId = null;
   renderAll();
 });
 
