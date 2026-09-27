@@ -1,0 +1,16 @@
+{
+  "name": "salon-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CRM/ERP y cuadro de mando para salones de belleza, con consola para el distribuidor.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "demo": "DEMO=1 DB_PATH=./data/demo.db node --disable-warning=ExperimentalWarning server.js",
+    "demo:reset": "rm -f ./data/demo.db ./data/demo.db-wal ./data/demo.db-shm && npm run demo",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}

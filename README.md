@@ -1,5 +1,7 @@
 # Muttto · Constructor de Menú de Servicios
 
+> En la carpeta [`salon-os/`](salon-os/README.md) está **Salon OS**, el CRM/ERP y cuadro de mando para salones con consola de distribuidor (aplicación aparte, con servidor y base de datos).
+
 Landing interna para construir el menú de precios de la peluquería a partir de
 servicios seleccionables. Ya viene cargada con los 38 servicios reales del
 "Cuadrante del Estilista de Muttto", con sus tiempos de aplicación, exposición
