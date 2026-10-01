@@ -29,4 +29,13 @@ if (!db.prepare('SELECT 1 FROM users LIMIT 1').get()) {
 }
 
 const port = Number(process.env.PORT) || 3000;
-createServer(createApp(db)).listen(port, () => console.log(`Salon OS escuchando en http://localhost:${port}`));
+const server = createServer(createApp(db));
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\nEl puerto ${port} ya está en uso: seguramente Salon OS ya está abierto en otra ventana.`);
+    console.error(`Abre http://localhost:${port} o cierra la otra ventana y vuelve a intentarlo.\n`);
+    process.exit(1);
+  }
+  throw err;
+});
+server.listen(port, () => console.log(`Salon OS escuchando en http://localhost:${port}`));

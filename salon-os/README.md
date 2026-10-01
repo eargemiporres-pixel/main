@@ -9,11 +9,20 @@ su servidor HTTP y su SQLite integrados, y una interfaz web en HTML/CSS/JS.
 
 ## Probarlo en 1 minuto
 
+Necesitas Node.js 22.13 o superior (la versión LTS de https://nodejs.org).
+
+- **Windows**: doble clic en `Iniciar demo (Windows).bat`.
+- **Mac**: doble clic en `Iniciar demo (Mac).command` (la primera vez: clic
+  derecho → Abrir).
+- **Desde la terminal**, en cualquier sistema:
+
 ```bash
 cd salon-os
 npm run demo          # carga 6 salones de ejemplo con ~20 meses de actividad
-# abre http://localhost:3000
 ```
+
+Se abre solo el navegador en http://localhost:3000. Para pararla, cierra la
+ventana negra o pulsa Ctrl + C.
 
 | Acceso | Email | Contraseña |
 | --- | --- | --- |
