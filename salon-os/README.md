@@ -32,6 +32,18 @@ ventana negra o pulsa Ctrl + C.
 Los demás salones de la demo: `alba@`, `ondas@`, `lia@`, `rizo@`, `sol@demo.com`.
 `npm run demo:reset` borra la demo y la vuelve a generar.
 
+### Demo sin instalar nada (en el navegador)
+
+`web-demo/` contiene una versión que funciona entera en el navegador: el
+mismo código del servidor corre dentro de la página con SQLite en memoria
+(sql.js), así que no necesita servidor ni base de datos. Los datos de ejemplo
+se generan al abrirla y se reinician al recargar. Sirve para enseñar la
+herramienta con un enlace.
+
+```bash
+node web-demo/build.mjs        # genera web-demo/dist, publicable en cualquier hosting estático
+```
+
 ## Qué hace
 
 **Para cada salón**

@@ -427,6 +427,7 @@ export function createApp(db) {
   });
 
   on('GET', '/api/health', 'none', () => ({ ok: true, today: today() }));
+  on('GET', '/api/config', 'none', () => ({ demo: process.env.DEMO === '1' }));
 
   /* ---------- Despacho ---------- */
 

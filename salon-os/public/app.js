@@ -137,9 +137,28 @@ function openForm({ title, intro = '', fields, submit = 'Guardar', onSubmit }) {
   return dlg;
 }
 
-function confirmAction(message) {
-  return window.confirm(message);
+/* Confirmación dentro de la página (no depende de window.confirm, que algunos
+   navegadores o marcos incrustados bloquean). Devuelve una promesa. */
+function confirmAction(message, ok = 'Confirmar') {
+  return new Promise((resolve) => {
+    const dlg = document.createElement('dialog');
+    dlg.innerHTML = `<form method="dialog"><h2 style="font-size:22px">${esc(message)}</h2>
+      <div class="form-actions"><button type="button" class="btn" data-no>Cancelar</button><button type="submit" class="btn primary">${esc(ok)}</button></div></form>`;
+    document.body.appendChild(dlg);
+    let answer = false;
+    $('[data-no]', dlg).onclick = () => dlg.close();
+    $('form', dlg).addEventListener('submit', (e) => { e.preventDefault(); answer = true; dlg.close(); });
+    dlg.addEventListener('close', () => { dlg.remove(); resolve(answer); });
+    dlg.showModal();
+  });
 }
+
+/* Almacenamiento del navegador tolerante a fallos (modo privado, bloqueos). */
+const store = {
+  get(k) { try { return sessionStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { sessionStorage.setItem(k, v); } catch { /* sin almacenamiento */ } },
+  clear() { try { sessionStorage.clear(); } catch { /* sin almacenamiento */ } }
+};
 
 /* ---------- Router ---------- */
 function parseHash() {
@@ -163,13 +182,17 @@ async function render() {
     try { S.me = await fetch('/api/me', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)); } catch { S.me = null; }
   }
   if (!S.me) return renderLogin(app);
-  if (!S.ref) S.ref = S.me.today.slice(0, 7);
+  if (!S.ref) {
+    // Los primeros días de un mes casi no tienen datos: se abre el mes anterior.
+    const [y, m, d] = S.me.today.split('-').map(Number);
+    S.ref = d <= 5 ? (m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`) : S.me.today.slice(0, 7);
+  }
   if (!S.consoleRef) S.consoleRef = S.ref;
   if (!S.cashDate) S.cashDate = S.me.today;
 
   let { page, id, query } = parseHash();
   if (isAdmin()) {
-    if (!S.salonId) S.salonId = Number(sessionStorage.getItem('salonId')) || null;
+    if (!S.salonId) S.salonId = Number(store.get('salonId')) || null;
     if (!page) page = 'consola';
     if (page !== 'consola' && !S.salonId) {
       S.salonId = S.me.salons[0]?.id || null;
@@ -198,11 +221,11 @@ async function render() {
     </aside>
     <main class="main" id="main"><div class="loading">Cargando…</div></main>
   </div>`;
-  $('#logout').onclick = async () => { await api('/api/logout', { method: 'POST', body: {} }).catch(() => {}); S.me = null; sessionStorage.clear(); go('#/'); render(); };
+  $('#logout').onclick = async () => { await api('/api/logout', { method: 'POST', body: {} }).catch(() => {}); S.me = null; store.clear(); go('#/'); render(); };
   const pick = $('#salonPick');
   if (pick) pick.onchange = () => {
     S.salonId = Number(pick.value);
-    sessionStorage.setItem('salonId', S.salonId);
+    store.set('salonId', S.salonId);
     if (page === 'consola') go('#/panel'); else render();
   };
   const main = $('#main');
@@ -235,10 +258,27 @@ function renderLogin(app) {
         <label class="field">Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
         <p class="down hidden" id="loginErr" role="alert" style="margin:0;font-weight:600"></p>
         <button class="btn primary" type="submit">Entrar</button>
-        <div class="demo-box">¿Probando la demo?<br>Salón: <code>norte@demo.com</code><br>Distribuidor: <code>admin@demo.com</code><br>Contraseña: <code>demo1234</code></div>
+        <div class="demo-box hidden" id="demoBox">
+          <b style="color:var(--ink)">Demo con datos de ejemplo</b><br>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
+            <button type="button" class="btn small" data-demo="norte@demo.com">Entrar como salón</button>
+            <button type="button" class="btn small" data-demo="admin@demo.com">Entrar como distribuidor</button>
+          </div>
+          Salón: <code>norte@demo.com</code> · Distribuidor: <code>admin@demo.com</code> · Contraseña: <code>demo1234</code>
+        </div>
       </form>
     </section>
   </div>`;
+  fetch('/api/config').then((r) => r.json()).then((c) => {
+    if (!c.demo) return;
+    $('#demoBox').classList.remove('hidden');
+    $$('[data-demo]').forEach((b) => (b.onclick = () => {
+      const f = $('#loginForm');
+      f.email.value = b.dataset.demo;
+      f.password.value = 'demo1234';
+      f.requestSubmit();
+    }));
+  }).catch(() => {});
   $('#loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target;
@@ -704,7 +744,7 @@ VIEWS.caja = async (main) => {
   });
   $$('[data-del]', main).forEach((b) => (b.onclick = async () => {
     const [kind, id] = [b.dataset.del[0], b.dataset.del.slice(1)];
-    if (!confirmAction(kind === 't' ? '¿Anular este cobro?' : '¿Borrar este movimiento?')) return;
+    if (!(await confirmAction(kind === 't' ? '¿Anular este cobro?' : '¿Borrar este movimiento?', 'Anular'))) return;
     try {
       await api(kind === 't' ? `/api/tickets/${id}` : `/api/cash/movements/${id}`, { method: 'DELETE', body: {} });
       toast('Anulado');
@@ -724,7 +764,7 @@ VIEWS.caja = async (main) => {
     $('#closeCash').onclick = async () => {
       const v = parseNum(counted.value);
       if (!counted.value || !Number.isFinite(v)) return toast('Escribe el efectivo contado', true);
-      if (!confirmAction('¿Cerrar la caja? Después no se podrán anular cobros de este día.')) return;
+      if (!(await confirmAction('¿Cerrar la caja? Después no se podrán anular cobros de este día.', 'Cerrar caja'))) return;
       try { await api('/api/cash/close', { method: 'POST', body: { date: d.date, counted: v } }); toast('Caja cerrada'); render(); }
       catch (err) { toast(err.message, true); }
     };
@@ -842,7 +882,7 @@ VIEWS.pedidos = async (main) => {
     onSubmit: async (v) => { await api('/api/orders', { method: 'POST', body: v }); toast('Pedido registrado'); render(); }
   });
   $$('[data-del]', main).forEach((b) => (b.onclick = async () => {
-    if (!confirmAction('¿Borrar este pedido?')) return;
+    if (!(await confirmAction('¿Borrar este pedido?', 'Borrar'))) return;
     await api(`/api/orders/${b.dataset.del}`, { method: 'DELETE', body: {} }).then(() => render()).catch((e) => toast(e.message, true));
   }));
 };
@@ -865,7 +905,7 @@ VIEWS.importar = async (main) => {
       <p class="muted" style="margin:0;font-size:14px">Casi todos los TPV y programas de peluquería exportan las ventas a Excel o CSV. Expórtalas (en Excel: «Guardar como → CSV») y súbelas aquí. Reconozco las columnas automáticamente; lo ya importado no se duplica.</p>
       <label class="field">Archivo CSV<input type="file" id="csvFile" accept=".csv,.txt,text/csv" class="input" style="padding:9px 12px"></label>
       <details><summary style="cursor:pointer;font-size:14px;font-weight:600">…o pega el contenido</summary><textarea id="csvText" class="input" style="min-height:140px;padding:10px;margin-top:8px;font-family:monospace;font-size:12px"></textarea></details>
-      <div class="form-actions" style="justify-content:space-between"><a class="btn small ghost" id="tplLink" download="plantilla-salon-os.csv">Descargar plantilla</a><button type="button" class="btn dark" id="analyze">Revisar antes de importar</button></div>
+      <div class="form-actions" style="justify-content:space-between"><button type="button" class="btn small ghost" id="tplFill">Probar con un ejemplo</button><button type="button" class="btn dark" id="analyze">Revisar antes de importar</button></div>
       <div id="importResult"></div>
     </div>
     <div class="card">
@@ -893,9 +933,13 @@ Content-Type: application/json
     </div>
   </section>`;
 
-  $('#tplLink').href = URL.createObjectURL(new Blob([`﻿${CSV_TEMPLATE}`], { type: 'text/csv' }));
+  $('#tplFill').onclick = () => {
+    $('details', main).open = true;
+    $('#csvText').value = CSV_TEMPLATE;
+    $('#csvFile').value = '';
+  };
   $('#newKey').onclick = async () => {
-    if (settings.api_key && !confirmAction('La clave anterior dejará de funcionar. ¿Continuar?')) return;
+    if (settings.api_key && !(await confirmAction('La clave anterior dejará de funcionar. ¿Generar una nueva?', 'Generar clave'))) return;
     const r = await api('/api/settings/apikey', { method: 'POST', body: {} });
     $('#apiKey').textContent = r.api_key;
     settings.api_key = r.api_key;
@@ -906,7 +950,7 @@ Content-Type: application/json
     if (f) {
       const buf = await f.arrayBuffer();
       let text = new TextDecoder('utf-8').decode(buf);
-      if (text.includes('�')) text = new TextDecoder('windows-1252').decode(buf); // exportaciones de Excel en Windows
+      if (text.includes('\uFFFD')) text = new TextDecoder('windows-1252').decode(buf); // exportaciones de Excel en Windows
       return text;
     }
     return $('#csvText').value;
@@ -1032,7 +1076,7 @@ VIEWS.consola = async (main) => {
 
   $('#cRef').onchange = (e) => { if (e.target.value) { S.consoleRef = e.target.value; render(); } };
   $$('[data-cf]', main).forEach((btn) => (btn.onclick = () => { S.consoleFilter = btn.dataset.cf; render(); }));
-  $$('[data-view]', main).forEach((btn) => (btn.onclick = () => { S.salonId = Number(btn.dataset.view); sessionStorage.setItem('salonId', S.salonId); go('#/panel'); }));
+  $$('[data-view]', main).forEach((btn) => (btn.onclick = () => { S.salonId = Number(btn.dataset.view); store.set('salonId', S.salonId); go('#/panel'); }));
   $$('[data-edit]', main).forEach((btn) => (btn.onclick = () => {
     const s = d.salons.find((x) => String(x.id) === btn.dataset.edit);
     openForm({
