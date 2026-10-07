@@ -476,3 +476,7 @@ tr.drag-over-below{box-shadow:inset 0 -2px 0 0 var(--app-accent);}
   .ms-times-table tr{break-inside:avoid; page-break-inside:avoid;}
   .ms-times-cat-row{break-after:avoid; page-break-after:avoid;}
 }
+
+.topbar-link{margin-left:auto;color:#f4ead0;font-size:.82rem;text-decoration:none;border:1px solid rgba(244,234,208,.5);padding:8px 14px;border-radius:999px;}
+.topbar-link:hover{background:rgba(255,255,255,.1);}
+@media print{.topbar-link{display:none;}}

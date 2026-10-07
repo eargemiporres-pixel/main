@@ -112,3 +112,25 @@ python3 -m http.server 8000
 ```
 
 y visitar `http://localhost:8000`.
+
+
+## Planificador de crecimiento a 3 meses (`plan.html`)
+
+Segunda herramienta del sitio. La dueña (o la asesora) rellena los datos del
+salón y se genera un PDF A4 de 9 páginas con el estilo Muttto: portada,
+punto de partida, diagnóstico priorizado, números y precios mínimos, un plan
+por mes (acciones por semana + objetivos) y una página de visión y mentalidad.
+
+Archivos: `plan.html` (formulario + vista previa), `plan.css` (estilos y
+páginas A4), `plan.js` (reglas, diagnóstico, plan y maquetación),
+`assets/logo-muttto-blanco.png` (logo para portada y cierre).
+
+Reglas aplicadas (editables en `RULES` de `plan.js`): 0,85 €/min mínimo,
+ticket medio (color de raíz + secado) ≥ 50 €, 80-120 clientas por
+colaborador, ≥ 5.000 € por empleado (rentable desde 4.000 €), producto ≈ 20 %,
+servicios < 50 €/h ≤ 20 %, reparto equitativo del tiempo (100 / nº de
+personas), 2 tocadores por estilista y 1 lavacabezas por cada 2, y máximo de
+puestos según m² (4-5 intimidad / 8 volumen por 60 m², escalado
+proporcionalmente). Los textos de las acciones están en `buildPlan()`.
+Como en el Constructor de Menú, no se guarda nada y el PDF sale del diálogo
+de impresión del navegador ("Guardar como PDF").

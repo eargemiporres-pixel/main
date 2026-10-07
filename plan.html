@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Muttto · Plan de Crecimiento a 3 Meses</title>
+<link rel="icon" href="assets/logo-muttto.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="plan.css">
+</head>
+<body>
+
+<header class="topbar no-print">
+  <div class="topbar-inner">
+    <img class="topbar-logo" src="assets/logo-muttto.png" alt="Muttto The Beauty Lab">
+    <div class="topbar-text">
+      <h1>Plan de Crecimiento a 3 Meses</h1>
+      <p>Diagnostica tu salón y descarga un plan de acción en PDF.</p>
+    </div>
+    <a class="topbar-link" href="index.html">① Control de costes y precios →</a>
+  </div>
+</header>
+
+<!-- ============================ FORMULARIO ============================ -->
+<main id="formView" class="wrap no-print">
+
+  <section class="hero">
+    <p class="eyebrow">Diagnóstico + plan de acción</p>
+    <h2>¿En qué punto está tu salón y qué hacer en los próximos 90 días?</h2>
+    <p>Rellena los datos reales del salón. Calculamos tu ticket medio, tu precio por minuto, la salud del negocio y el reparto del equipo, y te generamos un plan mes a mes. Los datos <strong>no se guardan ni salen de tu navegador</strong>.</p>
+    <p class="hint-line">Antes de empezar: conviene haber hecho el <a href="index.html">control de costes y precios</a>, para tener a mano tus precios y tiempos.</p>
+    <button type="button" id="demoBtn" class="btn btn-text">Rellenar con un ejemplo</button>
+  </section>
+
+  <form id="planForm" novalidate>
+
+    <section class="card">
+      <h3><span class="n">1</span> Tu salón</h3>
+      <div class="grid g2">
+        <label class="field"><span>Nombre del salón</span><input type="text" id="salon" placeholder="Ej. Peluquería Aurora"></label>
+        <label class="field"><span>Nombre de la propietaria</span><input type="text" id="owner" placeholder="Ej. Laura"></label>
+        <label class="field"><span>Nº de colaboradores (incluida la dueña)</span><input type="number" id="staff" min="1" step="1" placeholder="Ej. 3" data-req="1"></label>
+        <label class="field"><span>Coste mensual bruto por colaborador (€)</span><input type="number" id="payCost" min="0" step="10" value="2100"></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3><span class="n">2</span> Precios y tiempos <small>Ficha 3 · Ticket medio</small></h3>
+      <p class="hint">Precio y <strong>tiempo total real</strong> (aplicación + exposición + lavado) de tus servicios base.</p>
+      <div class="svc-grid">
+        <div class="svc-head"></div><div class="svc-head">Precio (€)</div><div class="svc-head">Tiempo (min)</div>
+        <div class="svc-name">Color de raíz</div>
+        <input type="number" id="pColor" min="0" step="0.5" placeholder="55" data-req="1"><input type="number" id="tColor" min="1" step="5" placeholder="90" data-req="1">
+        <div class="svc-name">Secado medio</div>
+        <input type="number" id="pDry" min="0" step="0.5" placeholder="22" data-req="1"><input type="number" id="tDry" min="1" step="5" placeholder="40" data-req="1">
+        <div class="svc-name">Corte mujer <em>(opcional)</em></div>
+        <input type="number" id="pCut" min="0" step="0.5" placeholder="25"><input type="number" id="tCut" min="1" step="5" placeholder="30">
+      </div>
+      <label class="field mt"><span>% de tu facturación que viene de servicios que facturan menos de 50 €/hora</span>
+        <input type="number" id="lowShare" min="0" max="100" step="1" placeholder="Ej. 35"></label>
+    </section>
+
+    <section class="card">
+      <h3><span class="n">3</span> Números del mes <small>Un mes normal, no el mejor</small></h3>
+      <div class="grid g2">
+        <label class="field"><span>Clientas atendidas al mes (todo el salón)</span><input type="number" id="clients" min="0" step="1" placeholder="Ej. 230" data-req="1"></label>
+        <label class="field"><span>Facturación mensual del salón (€)</span><input type="number" id="revenue" min="0" step="50" placeholder="Ej. 9500" data-req="1"></label>
+        <label class="field"><span>Alquiler mensual (€)</span><input type="number" id="rent" min="0" step="10" placeholder="Ej. 900"></label>
+        <label class="field"><span>Luz, agua y otros consumos (€)</span><input type="number" id="utilities" min="0" step="10" placeholder="Ej. 250"></label>
+        <label class="field"><span>Gasto de producto al mes (€)</span><input type="number" id="product" min="0" step="10" placeholder="Ej. 2300"></label>
+        <label class="field"><span>Material, mobiliario y maquinaria (€/mes)</span><input type="number" id="equipment" min="0" step="10" placeholder="Total amortizado al mes"></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3><span class="n">4</span> Equipo y reparto del tiempo</h3>
+      <label class="field"><span>¿Qué % del tiempo total de trabajo del salón dedica la dueña? <em id="ownerShareHint"></em></span>
+        <input type="number" id="ownerShare" min="0" max="100" step="1" placeholder="Ej. 70"></label>
+      <p class="hint">Reparto sano: 2 personas, 50-50 · 3 personas, 33 cada una · 4 personas, 25 cada una…</p>
+    </section>
+
+    <section class="card">
+      <h3><span class="n">5</span> Espacio y mobiliario <small>Fichas 1 y 2</small></h3>
+      <div class="grid g3">
+        <label class="field"><span>Estilistas en el turno más fuerte</span><input type="number" id="peak" min="1" step="1" placeholder="Ej. 3"></label>
+        <label class="field"><span>Puestos de trabajo (tocadores)</span><input type="number" id="stations" min="0" step="1" placeholder="Ej. 4"></label>
+        <label class="field"><span>Lavacabezas</span><input type="number" id="sinks" min="0" step="1" placeholder="Ej. 1"></label>
+        <label class="field"><span>Metros cuadrados del local</span><input type="number" id="m2" min="0" step="1" placeholder="Ej. 60"></label>
+        <label class="field"><span>El local es…</span>
+          <select id="tenure"><option value="alquiler">De alquiler</option><option value="propiedad">En propiedad</option></select></label>
+        <label class="field"><span>Salón ideal</span>
+          <select id="model"><option value="intimidad">Íntimo y relajante (ticket alto)</option><option value="volumen">Dinámico, con mucho flujo (volumen)</option></select></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3><span class="n">6</span> Formación <small>Ficha 4</small></h3>
+      <div class="grid g2">
+        <label class="field"><span>Formaciones que hacéis al mes</span><input type="number" id="trainings" min="0" step="1" placeholder="Ej. 1"></label>
+        <label class="field"><span>Tipo de formación habitual</span>
+          <select id="trainType"><option value="tecnica">Solo técnica / producto</option><option value="mixta">Técnica + cómo ponerle precio y tiempos</option><option value="ninguna">No hacemos formación</option></select></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3><span class="n">7</span> Mentalidad <small>Ficha 5 · Aquí está lo que de verdad frena</small></h3>
+      <p class="hint">Marca las frases con las que te identificas (sin juzgarte).</p>
+      <div class="checks" id="beliefs">
+        <label><input type="checkbox" value="trabajo"> “Si trabajo más, consigo facturar más”</label>
+        <label><input type="checkbox" value="producto"> “Si encuentro un producto mejor u otra oportunidad, lo cambio”</label>
+        <label><input type="checkbox" value="ticket"> “Mi ticket medio es el correcto” (sin saber respecto a qué)</label>
+        <label><input type="checkbox" value="equipo"> “Es que no recogen, no lavan las toallas, salen a fumar…”</label>
+        <label><input type="checkbox" value="valgo"> “No soy capaz”, “no valgo”, “¿cómo voy a cobrar esos precios?”</label>
+        <label><input type="checkbox" value="competencia"> Pongo mis precios mirando a la competencia de al lado</label>
+      </div>
+      <div class="grid g2 mt">
+        <label class="field"><span>¿Te sentirías cómoda cobrando 70 € por un color?</span>
+          <select id="comfort70"><option value="no">No, me cuesta imaginarlo</option><option value="duda">Tengo dudas</option><option value="si">Sí</option></select></label>
+        <label class="field"><span>¿Qué quieres conseguir en 1 año?</span><input type="text" id="goal" placeholder="Ej. Trabajar menos horas y ganar más"></label>
+      </div>
+      <label class="field mt"><span>¿Qué es lo que menos te gusta de tu salón hoy?</span><input type="text" id="pain" placeholder="Ej. Siempre estoy yo en todo"></label>
+    </section>
+
+    <p id="formError" class="form-error" role="alert" hidden></p>
+    <button type="submit" class="btn btn-primary btn-lg">Generar mi plan a 3 meses</button>
+  </form>
+</main>
+
+<!-- ============================ INFORME ============================ -->
+<section id="reportView" hidden>
+  <div class="report-bar no-print">
+    <button type="button" id="editBtn" class="btn btn-ghost">← Editar datos</button>
+    <span class="report-bar-text">Vista previa del PDF · 9 páginas A4</span>
+    <button type="button" id="printBtn" class="btn btn-primary">🖨 Descargar PDF</button>
+  </div>
+  <div id="reportPages" class="report-pages"></div>
+</section>
+
+<script src="plan.js"></script>
+</body>
+</html>
