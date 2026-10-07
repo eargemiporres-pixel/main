@@ -449,7 +449,45 @@ $('planForm').addEventListener('submit', e => {
 });
 
 $('editBtn').addEventListener('click', () => showReport(false));
-$('printBtn').addEventListener('click', () => window.print());
+$('printBtn').addEventListener('click', downloadPdf);
+
+/* PDF: dentro de una página publicada (sin diálogo de impresión) se genera el
+   archivo con html2canvas + jsPDF y se ofrece para guardar; si no están esas
+   librerías, se usa el diálogo de impresión del navegador. */
+async function downloadPdf() {
+  const btn = $('printBtn');
+  let dl = null;
+  try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) { dl = null; }
+  if (!dl || !window.html2canvas || !window.jspdf) { window.print(); return; }
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generando PDF…';
+  const host = document.createElement('div');
+  host.className = 'report-pages';
+  host.style.cssText = 'position:fixed;left:-10000px;top:0;padding:0;';
+  host.style.setProperty('--zoom', 1);
+  host.innerHTML = $('reportPages').innerHTML;
+  document.body.appendChild(host);
+  try {
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    const pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const pages = host.querySelectorAll('.rp');
+    for (let i = 0; i < pages.length; i++) {
+      const canvas = await window.html2canvas(pages[i], { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+      if (i) pdf.addPage();
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+    }
+    const name = (readInputs().salon || 'salon').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'salon';
+    await dl.save({ filename: `plan-crecimiento-${name}.pdf`, data: pdf.output('blob') });
+  } catch (err) {
+    if (window.console) console.error('PDF', err && (err.stack || err.message || err.code || err)); if (!err || err.code !== 'declined') alert_('No se pudo generar el PDF. Inténtalo de nuevo.');
+  } finally {
+    host.remove(); btn.disabled = false; btn.textContent = label;
+  }
+}
+function alert_(msg) {
+  const bar = document.querySelector('.report-bar-text');
+  bar.style.display = 'inline'; bar.style.color = '#a8452f'; bar.textContent = msg;
+}
 window.addEventListener('resize', fitReport);
 $('staff').addEventListener('input', () => {
   const n = val('staff');
