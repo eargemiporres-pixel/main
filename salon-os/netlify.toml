@@ -1,0 +1,5 @@
+# Netlify conectado a GitHub: indica «salon-os» como Base directory.
+# Publica la web comercial (/) y la demo en el navegador (/demo/).
+[build]
+  command = "node scripts/build-netlify.mjs"
+  publish = "netlify-dist"

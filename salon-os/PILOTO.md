@@ -3,6 +3,25 @@
 Pasos para poner Salon OS en internet, conectar el WhatsApp de un salón y
 llevar una prueba de 30 días de principio a fin.
 
+## 0. Web comercial gratis en Netlify (antes de tener la aplicación publicada)
+
+La landing y la demo pueden vivir gratis en Netlify; las solicitudes llegan por
+Netlify Forms y te avisan por email.
+
+1. Genera la carpeta: `node scripts/build-netlify.mjs` (crea `netlify-dist/`).
+   Cuando publiques la aplicación, añade `--app-url=https://app.tumarca.es` para
+   que el botón «Entrar» lleve a ella.
+2. En Netlify: *Add new project → Deploy manually* y arrastra la carpeta
+   `netlify-dist`. O conecta el repositorio con *Base directory* `salon-os`:
+   `netlify.toml` ya indica cómo construirla.
+3. En *Project configuration → Forms*, activa **Form detection** y vuelve a
+   publicar. Aparecerá el formulario «prueba».
+4. En *Forms → Form notifications* añade **Email notification** con tu email.
+5. (Opcional) *Domain management* → tu dominio, por ejemplo `tumarca.es`.
+
+Las solicitudes se ven en *Forms → prueba*. Cuando tengas la aplicación en
+marcha, da de alta el salón desde la consola.
+
 ## 1. Publicar la aplicación (una vez)
 
 Necesitas un servidor con disco persistente. Lo más sencillo es **Render**:
