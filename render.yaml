@@ -1,4 +1,4 @@
-# Despliegue de Salon OS en Render (Blueprint). La app vive en salon-os/.
+# Despliegue de MetricSalon en Render (Blueprint). La app vive en salon-os/.
 services:
   - type: web
     name: salon-os

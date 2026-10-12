@@ -1,6 +1,6 @@
 /* Prepara la web comercial para Netlify (o cualquier hosting estático):
    - index.html: la landing, con el formulario conectado a Netlify Forms.
-   - demo/: la demo de Salon OS que funciona solo en el navegador.
+   - demo/: la demo de MetricSalon que funciona solo en el navegador.
    Uso: node scripts/build-netlify.mjs [carpeta-destino] [--app-url=https://app.tumarca.es]
    Sin --app-url se quitan los enlaces «Entrar» (aún no hay aplicación publicada). */
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -28,12 +28,14 @@ swap('<form class="lead" id="leadForm" novalidate>',
   '<form class="lead" id="leadForm" name="prueba" method="POST" data-netlify="true" netlify-honeypot="website" novalidate>\n        <input type="hidden" name="form-name" value="prueba">');
 swap('<a class="btn" href="app" id="demoLink">', '<a class="btn" href="demo/" id="demoLink">');
 if (appUrl) {
-  swap('href="app"', `href="${appUrl}/app"`);
+  swap('href="app" id="loginLink"', `href="${appUrl}/app" id="loginLink"`);
+  swap('<a href="app">Entrar en mi cuenta</a>', `<a href="${appUrl}/app">Entrar en mi cuenta</a>`);
 } else {
   swap('      <a class="btn secondary" href="app" id="loginLink">Entrar</a>\n',
     '      <a class="btn secondary" href="demo/" id="loginLink">Ver la demo</a>\n');
   swap('<a href="app">Entrar en mi cuenta</a>', '<a href="demo/">Ver la demo</a>');
 }
+swap('<a href="app" id="footDemo">', '<a href="demo/" id="footDemo">');
 swap('<script src="landing.js"></script>', '<script src="netlify-lead.js"></script>\n<script src="landing.js"></script>');
 writeFileSync(join(out, 'index.html'), html);
 

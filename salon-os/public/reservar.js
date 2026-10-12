@@ -1,4 +1,4 @@
-/* Reserva online de Salon OS: /reservar/<salón> y /reservar/<salón>/cita/<código>. */
+/* Reserva online de MetricSalon: /reservar/<salón> y /reservar/<salón>/cita/<código>. */
 (function () {
   var app = document.getElementById('app');
   var m = location.pathname.match(/^\/reservar\/([a-z0-9-]+)(?:\/cita\/([a-f0-9]+))?/);
@@ -54,7 +54,7 @@
           '<div id="formMsg"></div>' +
           '<button class="btn primary" type="submit" id="confirm">Confirmar reserva</button>' +
         '</form>' +
-        '<footer>Reservas con Salon OS</footer>' +
+        '<footer>Reservas con MetricSalon</footer>' +
         '<div class="bar" id="bar" hidden><div class="in"><div class="sum"><b id="barTitle"></b><small id="barSub"></small></div><button type="button" class="btn primary" id="barNext">Continuar</button></div></div>';
       bind();
     }).catch(function (e) { fail(e.message); });

@@ -1,4 +1,4 @@
-# Salon OS · CRM/ERP para salones de belleza
+# MetricSalon · CRM/ERP para salones de belleza
 
 Cuadro de mando, clientes, caja y distribución de producto para salones de
 peluquería y belleza, con una consola para el distribuidor/asesor que da
@@ -164,7 +164,7 @@ node web-demo/build.mjs        # genera web-demo/dist, publicable en cualquier h
 ## Cómo entran los datos (sin teclear dos veces)
 
 1. **Importación CSV/Excel** (*Conectar TPV / importar*). Casi todos los TPV
-   y programas de peluquería exportan sus ventas. Salon OS reconoce las
+   y programas de peluquería exportan sus ventas. MetricSalon reconoce las
    columnas por su nombre, en español o en inglés: fecha, ticket, cliente,
    teléfono, empleado, concepto, cantidad, importe, forma de pago, horas…
    - Entiende números y fechas en formato español.

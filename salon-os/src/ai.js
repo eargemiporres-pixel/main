@@ -1,6 +1,6 @@
 /* Resumen de cliente con Claude (opcional). Se activa solo si el servidor
    tiene credenciales de la API de Anthropic (ANTHROPIC_API_KEY) y el paquete
-   @anthropic-ai/sdk instalado; si no, Salon OS usa el análisis por reglas. */
+   @anthropic-ai/sdk instalado; si no, MetricSalon usa el análisis por reglas. */
 
 let clientPromise = null;
 

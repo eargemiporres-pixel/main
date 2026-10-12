@@ -3,19 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Salon OS</title>
-<meta name="description" content="Salon OS conecta la caja y el WhatsApp de tu salón: métricas claras, ficha de cada cliente y recordatorios que traen clientes de vuelta. Prueba 30 días gratis.">
+<title>MetricSalon</title>
+<meta name="description" content="MetricSalon es el programa de gestión para peluquerías y salones de belleza: agenda y reservas online, caja, clientas, WhatsApp y la rentabilidad real de cada servicio. Prueba 30 días gratis.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* Web comercial: misma identidad que la app. Bloques amplios, una sola columna en móvil. */
+  /* Web comercial. Fondo claro, titulares grandes, el producto como protagonista.
+     Una sola columna en móvil. Los paneles del producto son ilustraciones con datos de ejemplo. */
   :root {
-    --bg: #F4EFE8; --surface: #FFFFFF; --ink: #1F1A17; --ink-2: #4A423C; --muted: #6A6059; --line: #E5DDD2;
-    --plum: #6E2A4E; --plum-dark: #4A1B34; --plum-soft: #EFE4EA; --ochre: #D9A55B; --dark: #1F1A17; --dark-2: #2C2521;
-    --green: #2E6B45; --green-soft: #E3F0E7; --red: #A63A2A;
+    --bg: #FFFFFF; --soft: #F7F4F0; --soft-2: #FBF9F6; --ink: #17131A; --ink-2: #47404A; --muted: #6E6670; --line: #ECE6DF;
+    --plum: #6E2A4E; --plum-dark: #4E1C37; --plum-soft: #F3E9EF; --ochre: #D9A55B; --ochre-soft: #FBF1E2;
+    --green: #2E6B45; --green-soft: #E5F2E9; --red: #A63A2A; --red-soft: #F9E6E2; --blue: #2F5C8A; --blue-soft: #E6EEF7;
+    --dark: #1B1520;
     --display: 'Fraunces', Georgia, serif; --body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --shadow: 0 30px 80px rgba(23, 19, 26, 0.14), 0 2px 6px rgba(23, 19, 26, 0.05);
     color-scheme: light;
   }
   * { box-sizing: border-box; }
@@ -26,145 +29,262 @@
   h1, h2, h3 { margin: 0; text-wrap: balance; }
   p { margin: 0; }
   :focus-visible { outline: 2px solid var(--plum); outline-offset: 2px; }
-  .wrap { max-width: 1160px; margin: 0 auto; padding-inline: 20px; }
-  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 22px; border-radius: 12px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font-family: inherit; }
-  .btn:hover { border-color: #c9bfb2; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; padding: 0 24px; border-radius: 999px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; font-family: inherit; transition: background .15s, border-color .15s; }
+  .btn:hover { border-color: #cfc5bb; }
   .btn.primary { background: var(--plum); border-color: var(--plum); color: #fff; }
-  .btn.primary:hover { background: var(--plum-dark); }
-  .btn.ghost-dark { background: transparent; border-color: #4a403a; color: #F4EFE8; }
-  .eyebrow { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--plum); font-weight: 600; }
+  .btn.primary:hover { background: var(--plum-dark); border-color: var(--plum-dark); }
+  .btn.light { background: #fff; border-color: #fff; color: var(--plum-dark); }
+  .eyebrow { display: inline-block; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--plum); font-weight: 700; }
+  .checks { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center; font-size: 14px; color: var(--muted); }
+  .checks span { display: inline-flex; align-items: center; gap: 6px; }
+  .checks span::before { content: ""; width: 16px; height: 16px; border-radius: 50%; background: var(--green-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4.5 8.2l2.2 2.2 4.8-4.8' fill='none' stroke='%232E6B45' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat; }
 
-  header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: rgba(244, 239, 232, 0.94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
-  header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 68px; }
-  .logo { font-family: var(--display); font-size: 24px; font-weight: 600; color: var(--ink); text-decoration: none; }
-  .top nav { display: flex; gap: 22px; font-size: 15px; }
+  /* Cabecera */
+  header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(10px); border-bottom: 1px solid transparent; transition: border-color .2s; }
+  header.top.scrolled { border-bottom-color: var(--line); }
+  header.top .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 70px; }
+  .logo { font-family: var(--display); font-size: 25px; font-weight: 600; color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+  .logo i { width: 28px; height: 28px; border-radius: 8px; background: var(--plum); display: inline-grid; place-items: center; font-style: normal; font-family: var(--body); color: #fff; font-size: 14px; font-weight: 700; }
+  .top nav { display: flex; gap: 26px; font-size: 15px; font-weight: 500; }
   .top nav a { color: var(--ink-2); text-decoration: none; }
   .top nav a:hover { color: var(--plum); }
-  .top .actions { display: flex; gap: 8px; }
-  .top .actions .btn { min-height: 42px; padding: 0 16px; font-size: 14px; }
+  .top .actions { display: flex; gap: 8px; align-items: center; }
+  .top .actions .btn { min-height: 42px; padding: 0 18px; font-size: 14px; }
+  .top .actions .btn.secondary { border-color: transparent; }
 
-  .hero { padding-block: 64px 72px; }
-  .hero .wrap { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 48px; align-items: center; }
-  .hero h1 { font-family: var(--display); font-weight: 500; font-size: clamp(36px, 5vw, 58px); line-height: 1.05; letter-spacing: -0.02em; }
-  .hero p.lead { font-size: 19px; color: var(--ink-2); max-width: 34em; margin-top: 20px; }
-  .hero .cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 28px; }
-  .hero .note { font-size: 14px; color: var(--muted); margin-top: 14px; }
+  /* Portada */
+  .hero { padding-block: 72px 0; text-align: center; background: linear-gradient(180deg, #fff 0%, var(--soft-2) 60%, var(--soft) 100%); overflow: hidden; }
+  .hero .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 6px; border-radius: 999px; background: #fff; border: 1px solid var(--line); font-size: 14px; color: var(--ink-2); font-weight: 500; }
+  .hero .pill b { background: var(--plum-soft); color: var(--plum); border-radius: 999px; padding: 2px 10px; font-size: 12px; }
+  .hero h1 { font-weight: 700; font-size: clamp(40px, 6.4vw, 76px); line-height: 1.02; letter-spacing: -0.035em; max-width: 14em; margin: 22px auto 0; }
+  .hero h1 em { font-style: normal; color: var(--plum); }
+  .hero p.lead { font-size: clamp(17px, 1.6vw, 20px); color: var(--ink-2); max-width: 38em; margin: 22px auto 0; }
+  .hero .cta { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 32px; }
+  .hero .checks { margin-top: 18px; }
+  .hero .stage { position: relative; margin-top: 56px; }
 
-  /* Ilustración del producto (datos de ejemplo) */
-  .mock { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 24px 60px rgba(31, 26, 23, 0.12); padding: 18px; display: grid; gap: 12px; }
-  .mock .bar-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); }
-  .mock .kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .mock .kpi { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
-  .mock .kpi small { display: block; font-size: 12px; color: var(--muted); }
-  .mock .kpi b { font-family: var(--display); font-weight: 500; font-size: 22px; }
-  .mock .kpi i { display: block; font-style: normal; font-size: 12px; font-weight: 600; color: var(--green); }
-  .mock .bars { display: flex; align-items: flex-end; gap: 6px; height: 90px; padding: 6px 2px 0; border-bottom: 1px solid var(--line); }
-  .mock .bars span { flex: 1; background: var(--plum); border-radius: 4px 4px 0 0; opacity: 0.85; }
-  .mock .bars span:last-child { background: var(--ochre); opacity: 1; }
-  .mock .chat { background: #FBF8F4; border-radius: 12px; padding: 12px; display: grid; gap: 6px; font-size: 13px; }
-  .mock .msg { max-width: 85%; padding: 8px 10px; border-radius: 12px; line-height: 1.4; }
-  .mock .msg.in { background: var(--surface); border: 1px solid var(--line); justify-self: start; }
-  .mock .msg.out { background: var(--plum); color: #fff; justify-self: end; }
-  .mock .chips { display: flex; gap: 6px; flex-wrap: wrap; }
-  .mock .chip { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 10px; background: var(--plum-soft); color: var(--plum); }
-  .mock .chip.green { background: var(--green-soft); color: var(--green); }
-  .mock .caption { font-size: 12px; color: var(--muted); text-align: right; }
+  /* Ventana del producto (ilustración) */
+  .app { background: #fff; border: 1px solid var(--line); border-radius: 18px 18px 0 0; box-shadow: var(--shadow); text-align: left; overflow: hidden; }
+  .app .chrome { display: flex; align-items: center; gap: 6px; height: 38px; padding-inline: 14px; border-bottom: 1px solid var(--line); background: var(--soft-2); }
+  .app .chrome i { width: 10px; height: 10px; border-radius: 50%; background: #E3DCD3; }
+  .app .chrome span { margin-left: 12px; font-size: 12px; color: var(--muted); background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 2px 10px; }
+  .app .body { display: grid; grid-template-columns: 190px minmax(0, 1fr); min-height: 420px; }
+  .app aside { background: var(--dark); color: #CFC6D2; padding: 18px 12px; display: grid; gap: 2px; align-content: start; font-size: 13px; }
+  .app aside b { color: #fff; font-family: var(--display); font-size: 18px; padding: 0 10px 12px; }
+  .app aside span { padding: 7px 10px; border-radius: 8px; }
+  .app aside span.on { background: rgba(255, 255, 255, 0.1); color: #fff; font-weight: 600; }
+  .app main { padding: 22px; display: grid; gap: 14px; align-content: start; }
+  .app .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .app h4 { margin: 0; font-size: 18px; }
+  .app .seg { display: flex; gap: 4px; font-size: 12px; }
+  .app .seg span { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .app .seg span.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .kpi { border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .kpi small { display: block; font-size: 12px; color: var(--muted); }
+  .kpi b { display: block; font-size: 22px; letter-spacing: -0.02em; margin-top: 2px; }
+  .kpi i { font-style: normal; font-size: 12px; font-weight: 600; color: var(--green); }
+  .split { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 10px; }
+  .card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 10px; align-content: start; }
+  .card small { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 130px; }
+  .bars span { flex: 1; background: var(--plum); border-radius: 5px 5px 0 0; opacity: 0.82; }
+  .bars span.now { background: var(--ochre); opacity: 1; }
+  .list { display: grid; gap: 8px; font-size: 13px; }
+  .list div { display: flex; justify-content: space-between; gap: 8px; }
+  .list em { font-style: normal; font-weight: 600; }
+  .floating { position: absolute; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 18px 40px rgba(23, 19, 26, 0.14); padding: 12px 14px; text-align: left; font-size: 13px; display: grid; gap: 4px; max-width: 240px; }
+  .floating b { font-size: 14px; }
+  .floating.f1 { left: -18px; top: 330px; }
+  .floating.f2 { right: -18px; top: 230px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--plum-soft); color: var(--plum); }
+  .tag.green { background: var(--green-soft); color: var(--green); }
+  .tag.red { background: var(--red-soft); color: var(--red); }
+  .tag.ochre { background: var(--ochre-soft); color: #8A5A17; }
 
-  section.block { padding-block: 72px; }
-  section.block .head { max-width: 720px; margin-bottom: 36px; display: grid; gap: 12px; }
-  section.block h2 { font-family: var(--display); font-weight: 500; font-size: clamp(30px, 3.6vw, 42px); line-height: 1.12; letter-spacing: -0.015em; }
-  section.block .head p { font-size: 18px; color: var(--ink-2); }
+  /* Funciona con… */
+  .works { background: var(--soft); padding-block: 34px 40px; border-top: 1px solid var(--line); }
+  .works p { text-align: center; font-size: 14px; color: var(--muted); font-weight: 500; }
+  .works ul { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 34px; }
+  .works li { font-weight: 700; font-size: 18px; color: #8B8290; letter-spacing: -0.01em; }
 
-  .pains { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-  .pain { border-top: 3px solid var(--ochre); padding-top: 16px; display: grid; gap: 8px; }
-  .pain h3 { font-size: 19px; }
-  .pain p { color: var(--ink-2); }
+  section.block { padding-block: 96px; }
+  section.block.soft { background: var(--soft); }
+  .head { max-width: 760px; margin: 0 auto 48px; display: grid; gap: 14px; text-align: center; justify-items: center; }
+  .head.left { margin-inline: 0; text-align: left; justify-items: start; }
+  section.block h2 { font-weight: 700; font-size: clamp(32px, 4.2vw, 52px); line-height: 1.06; letter-spacing: -0.03em; }
+  .head p { font-size: 18px; color: var(--ink-2); max-width: 36em; }
 
-  .features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-  .feature { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 24px; display: grid; gap: 10px; align-content: start; }
-  .feature svg { width: 26px; height: 26px; color: var(--plum); }
-  .feature h3 { font-size: 19px; }
-  .feature p { color: var(--ink-2); font-size: 15px; }
-  .feature ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 15px; display: grid; gap: 4px; }
-  .feature.star { background: var(--dark); color: #F4EFE8; border-color: var(--dark); }
-  .feature.star p, .feature.star ul { color: #D6CDC3; }
-  .feature.star svg { color: var(--ochre); }
+  /* Módulos en pestañas */
+  .tabs { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 36px; }
+  .tabs button { font: inherit; font-size: 15px; font-weight: 600; color: var(--ink-2); background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 10px 18px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .tabs button svg { width: 18px; height: 18px; }
+  .tabs button[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .panel { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 48px; align-items: center; }
+  .panel[hidden] { display: none; }
+  .panel .copy { display: grid; gap: 16px; }
+  .panel h3 { font-size: clamp(26px, 2.6vw, 34px); line-height: 1.12; letter-spacing: -0.02em; }
+  .panel .copy > p { font-size: 17px; color: var(--ink-2); }
+  .ticks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .ticks li { display: flex; gap: 10px; align-items: flex-start; color: var(--ink-2); }
+  .ticks li::before { content: ""; flex-shrink: 0; width: 20px; height: 20px; margin-top: 2px; border-radius: 50%; background: var(--plum-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M6 10.3l2.6 2.6L14.2 7.3' fill='none' stroke='%236E2A4E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/20px no-repeat; }
+  .shot { background: var(--soft); border-radius: 24px; padding: 28px; }
+  .shot .app { border-radius: 14px; }
+  .shot .app main { padding: 18px; }
 
-  .dark-band { background: var(--dark); color: #F4EFE8; }
-  .dark-band h2 { color: #F4EFE8; }
-  .dark-band.block .head p { color: #D6CDC3; }
-  .dark-band .eyebrow { color: var(--ochre); }
-  .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; counter-reset: step; }
-  .step { background: var(--dark-2); border-radius: 18px; padding: 24px; display: grid; gap: 10px; align-content: start; }
-  .step .n { font-family: var(--display); font-size: 40px; line-height: 1; color: var(--ochre); }
-  .step h3 { font-size: 19px; }
-  .step p { color: #D6CDC3; font-size: 15px; }
+  /* Agenda (ilustración) */
+  .week { display: grid; grid-template-columns: 44px repeat(5, minmax(0, 1fr)); gap: 4px; font-size: 11px; }
+  .week .h { color: var(--muted); font-weight: 600; text-align: center; padding-bottom: 4px; }
+  .week .t { color: var(--muted); text-align: right; padding-right: 6px; height: 34px; }
+  .week .c { position: relative; background: var(--soft-2); border-radius: 6px; height: 34px; }
+  .week .c b { position: absolute; inset: 2px; border-radius: 6px; padding: 3px 6px; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .week .p { background: var(--plum-soft); color: var(--plum); }
+  .week .o { background: var(--ochre-soft); color: #8A5A17; }
+  .week .g { background: var(--green-soft); color: var(--green); }
+  .week .bl { background: var(--blue-soft); color: var(--blue); }
+  .week .tall b { bottom: -36px; z-index: 1; }
 
-  .advice { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: center; }
-  .advice ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
-  .advice li { display: flex; gap: 12px; align-items: flex-start; font-size: 16px; }
-  .advice li::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--ochre); margin-top: 8px; flex-shrink: 0; }
-  .quote { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 24px; display: grid; gap: 10px; }
-  .quote b { font-family: var(--display); font-weight: 500; font-size: 22px; }
-  .quote small { color: var(--muted); }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .tbl th { text-align: left; font-size: 11px; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .tbl td { padding: 9px 8px; border-bottom: 1px solid var(--line); }
+  .tbl td.n, .tbl th.n { text-align: right; font-variant-numeric: tabular-nums; }
 
+  .chat { background: var(--soft-2); border-radius: 12px; padding: 14px; display: grid; gap: 8px; font-size: 13px; }
+  .msg { max-width: 82%; padding: 8px 11px; border-radius: 14px; line-height: 1.4; }
+  .msg.in { background: #fff; border: 1px solid var(--line); justify-self: start; }
+  .msg.out { background: var(--plum); color: #fff; justify-self: end; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* Todo en uno */
+  .modules { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .mod { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 22px; display: grid; gap: 10px; align-content: start; }
+  .mod .ic { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; }
+  .mod .ic svg { width: 22px; height: 22px; }
+  .mod h3 { font-size: 17px; }
+  .mod p { font-size: 14px; color: var(--ink-2); }
+  .ic.p { background: var(--plum-soft); color: var(--plum); }
+  .ic.o { background: var(--ochre-soft); color: #8A5A17; }
+  .ic.g { background: var(--green-soft); color: var(--green); }
+  .ic.b { background: var(--blue-soft); color: var(--blue); }
+
+  /* Cifras */
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .stat { border-top: 2px solid var(--ink); padding-top: 16px; display: grid; gap: 6px; }
+  .stat b { font-size: clamp(34px, 3.6vw, 46px); letter-spacing: -0.03em; line-height: 1; }
+  .stat p { color: var(--ink-2); font-size: 15px; }
+
+  /* Para quién */
+  .audience { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  .aud { border-radius: 22px; padding: 28px; display: grid; gap: 12px; align-content: start; }
+  .aud h3 { font-size: 22px; letter-spacing: -0.01em; }
+  .aud p { color: var(--ink-2); }
+  .aud.a { background: var(--plum-soft); }
+  .aud.b { background: var(--ochre-soft); }
+  .aud.c { background: var(--green-soft); }
+
+  /* Asesoría */
+  .advice { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 56px; align-items: center; }
+  .quote { background: var(--dark); color: #F2ECF4; border-radius: 24px; padding: 32px; display: grid; gap: 14px; }
+  .quote small { color: #B9AEBE; }
+  .quote b { font-size: 22px; line-height: 1.35; font-weight: 600; letter-spacing: -0.01em; }
+
+  /* Precios */
   .plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
-  .plan { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 26px; display: flex; flex-direction: column; gap: 14px; }
-  .plan.pick { border: 2px solid var(--plum); }
-  .plan .price { font-family: var(--display); font-size: 42px; font-weight: 500; line-height: 1; }
-  .plan .price small { font-family: var(--body); font-size: 15px; color: var(--muted); font-weight: 500; }
-  .plan ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--ink-2); font-size: 15px; flex-grow: 1; }
-  .plan .tag { align-self: flex-start; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 10px; background: var(--plum); color: #fff; }
+  .plan { background: #fff; border: 1px solid var(--line); border-radius: 22px; padding: 30px; display: flex; flex-direction: column; gap: 16px; }
+  .plan.pick { border: 2px solid var(--plum); box-shadow: 0 20px 50px rgba(110, 42, 78, 0.12); }
+  .plan .top-row { display: flex; justify-content: space-between; align-items: center; }
+  .plan h3 { font-size: 20px; }
+  .plan .price { font-size: 46px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+  .plan .price small { font-size: 15px; color: var(--muted); font-weight: 500; letter-spacing: 0; }
+  .plan .desc { color: var(--muted); font-size: 15px; }
+  .plan .ticks { flex-grow: 1; font-size: 15px; }
+  .plan .btn { width: 100%; }
 
-  .faq { display: grid; gap: 10px; max-width: 820px; }
-  .faq details { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; }
-  .faq summary { cursor: pointer; font-weight: 600; font-size: 17px; }
+  .faq { display: grid; gap: 10px; max-width: 840px; margin: 0 auto; }
+  .faq details { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px 22px; }
+  .faq summary { cursor: pointer; font-weight: 600; font-size: 17px; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; font-size: 22px; line-height: 1; color: var(--plum); }
+  .faq details[open] summary::after { content: "−"; }
   .faq details p { margin-top: 10px; color: var(--ink-2); }
 
-  .trial { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 40px; align-items: start; }
-  .trial-copy { display: grid; gap: 14px; }
-  .trial-copy ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--ink-2); }
-  form.lead { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 26px; display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Prueba gratis */
+  .trial-band { background: var(--plum); color: #fff; border-radius: 32px; padding: clamp(28px, 5vw, 64px); display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 48px; align-items: start; }
+  .trial-copy { display: grid; gap: 16px; }
+  .trial-copy .eyebrow { color: var(--ochre); }
+  .trial-copy h2 { color: #fff; }
+  .trial-copy p { font-size: 18px; color: #EBD9E3; }
+  .trial-copy ol { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 14px; counter-reset: s; }
+  .trial-copy li { display: flex; gap: 12px; align-items: flex-start; color: #F5ECF1; counter-increment: s; }
+  .trial-copy li::before { content: counter(s); flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: rgba(255, 255, 255, 0.14); display: grid; place-items: center; font-weight: 700; font-size: 14px; }
+  form.lead { background: #fff; color: var(--ink); border-radius: 22px; padding: 28px; display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18); }
   form.lead label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
   form.lead .full { grid-column: 1 / -1; }
-  form.lead input, form.lead select, form.lead textarea { min-height: 46px; padding: 0 12px; border: 1px solid #D9CFC3; border-radius: 10px; background: #FBF8F4; font: inherit; font-size: 15px; color: var(--ink); width: 100%; }
-  form.lead textarea { min-height: 90px; padding: 10px 12px; resize: vertical; }
+  form.lead input, form.lead select, form.lead textarea { min-height: 48px; padding: 0 14px; border: 1px solid #DDD4CB; border-radius: 12px; background: var(--soft-2); font: inherit; font-size: 15px; color: var(--ink); width: 100%; }
+  form.lead input:focus, form.lead select:focus, form.lead textarea:focus { border-color: var(--plum); outline: none; box-shadow: 0 0 0 3px var(--plum-soft); }
+  form.lead textarea { min-height: 90px; padding: 12px 14px; resize: vertical; }
   form.lead .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
   form.lead .legal { font-size: 12px; color: var(--muted); font-weight: 400; }
   .form-msg { grid-column: 1 / -1; padding: 12px 14px; border-radius: 12px; font-weight: 600; font-size: 15px; }
   .form-msg.ok { background: var(--green-soft); color: #245638; }
-  .form-msg.err { background: #F7E3DF; color: #8A2E20; }
+  .form-msg.err { background: var(--red-soft); color: #8A2E20; }
 
-  footer { border-top: 1px solid var(--line); padding-block: 28px calc(28px + env(safe-area-inset-bottom, 0px)); color: var(--muted); font-size: 14px; }
-  footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer { background: var(--dark); color: #B9AEBE; padding-block: 56px calc(32px + env(safe-area-inset-bottom, 0px)); font-size: 14px; margin-top: 96px; }
+  footer .cols { display: grid; grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)); gap: 32px; }
+  footer .logo { color: #fff; }
+  footer h4 { margin: 0 0 12px; color: #fff; font-size: 14px; }
+  footer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  footer a { color: #B9AEBE; text-decoration: none; }
+  footer a:hover { color: #fff; }
+  footer .base { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-top: 1px solid #332A38; margin-top: 40px; padding-top: 22px; }
 
+  @media (max-width: 1060px) {
+    .floating { display: none; }
+    .modules { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
   @media (max-width: 980px) {
     .top nav { display: none; }
-    .hero .wrap, .advice, .trial { grid-template-columns: minmax(0, 1fr); }
-    .features, .pains, .steps, .plans { grid-template-columns: minmax(0, 1fr); }
-    .hero { padding-block: 40px 48px; }
-    section.block { padding-block: 52px; }
+    .panel, .advice, .trial-band { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+    .plans, .audience { grid-template-columns: minmax(0, 1fr); }
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    footer .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    section.block { padding-block: 64px; }
+    .hero { padding-top: 44px; }
+    .app .body { grid-template-columns: minmax(0, 1fr); }
+    .app aside { display: none; }
   }
-  @media (max-width: 560px) {
+  @media (max-width: 620px) {
+    .hero .pill { font-size: 13px; }
+    .tabs { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; margin-inline: -20px; padding-inline: 20px; scrollbar-width: none; }
+    .tabs button { flex-shrink: 0; }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .split { grid-template-columns: minmax(0, 1fr); }
+    .modules { grid-template-columns: minmax(0, 1fr); }
+    .shot { padding: 12px; border-radius: 18px; }
+    .app main { padding: 14px; }
+    .app .seg { display: none; }
     form.lead { grid-template-columns: minmax(0, 1fr); padding: 20px; }
     .top .actions .btn.secondary { display: none; }
-    .mock .kpi b { font-size: 18px; }
+    .hero .btn { width: 100%; }
+    .week { grid-template-columns: 36px repeat(3, minmax(0, 1fr)); }
+    .week .x { display: none; }
   }
 </style>
 </head>
 <body>
-<header class="top">
+<header class="top" id="top">
   <div class="wrap">
-    <a class="logo" href="#">Salon OS</a>
+    <a class="logo" href="#"><i aria-hidden="true">M</i>MetricSalon</a>
     <nav aria-label="Secciones">
-      <a href="#que-hace">Qué hace</a>
-      <a href="#como-funciona">Cómo funciona</a>
+      <a href="#producto">Producto</a>
+      <a href="#para-quien">Para quién</a>
       <a href="#precios">Precios</a>
       <a href="#preguntas">Preguntas</a>
     </nav>
     <div class="actions">
       <a class="btn secondary" href="app" id="loginLink">Entrar</a>
-      <a class="btn primary" href="#prueba">Probar gratis</a>
+      <a class="btn primary" href="#prueba">Prueba gratis</a>
     </div>
   </div>
 </header>
@@ -172,117 +292,243 @@
 <main>
   <section class="hero">
     <div class="wrap">
-      <div>
-        <div class="eyebrow">Para peluquerías y salones de belleza</div>
-        <h1 style="margin-top:14px">Tus números claros y cada clienta a un mensaje.</h1>
-        <p class="lead">Salon OS conecta tu caja y tu WhatsApp de empresa. Sabes cuánto facturas, quién vuelve y a quién escribir hoy, sin teclear nada dos veces y sin formar al equipo.</p>
-        <div class="cta">
-          <a class="btn primary" href="#prueba">Pide tu prueba de 30 días</a>
-          <a class="btn" href="app" id="demoLink">Ver la demo</a>
-        </div>
-        <p class="note">Sin permanencia. Funciona con el TPV que ya tienes.</p>
+      <span class="pill"><b>Nuevo</b> Agenda con reservas online para tus clientas</span>
+      <h1>El programa para dirigir tu salón <em>con números, no a ojo.</em></h1>
+      <p class="lead">Agenda, caja, clientas, WhatsApp y la rentabilidad real de cada servicio en un solo sitio. Pensado para peluquerías y salones de belleza.</p>
+      <div class="cta">
+        <a class="btn primary" href="#prueba">Pide tu prueba de 30 días</a>
+        <a class="btn" href="app" id="demoLink">Ver la demo</a>
       </div>
-      <figure class="mock" aria-label="Ejemplo del panel de Salon OS con datos de ejemplo" style="margin:0">
-        <div class="bar-top"><span>Panel del salón · septiembre</span><span>Datos de ejemplo</span></div>
-        <div class="kpis">
-          <div class="kpi"><small>Facturación</small><b>16.858 €</b><i>+6,2 %</i></div>
-          <div class="kpi"><small>Ticket medio</small><b>51,40 €</b><i>+1,8 %</i></div>
-          <div class="kpi"><small>Clientes</small><b>284</b><i>31 nuevos</i></div>
-        </div>
-        <div class="bars" aria-hidden="true">
-          <span style="height:55%"></span><span style="height:62%"></span><span style="height:78%"></span><span style="height:58%"></span><span style="height:66%"></span><span style="height:72%"></span><span style="height:69%"></span><span style="height:52%"></span><span style="height:84%"></span>
-        </div>
-        <div class="chat">
-          <div class="msg in">Hola, ¿tenéis hueco el sábado por la mañana para la raíz?</div>
-          <div class="msg out">¡Hola Marta! A las 10:00 con Laura. ¿Te lo reservo?</div>
-          <div class="chips"><span class="chip green">Muy satisfecha</span><span class="chip">Le interesa el color</span><span class="chip">Prefiere sábados</span></div>
-        </div>
-        <figcaption class="caption">Lo que dice en WhatsApp se guarda en su ficha.</figcaption>
-      </figure>
+      <div class="checks"><span>30 días gratis</span><span>Sin permanencia</span><span>Funciona con tu TPV</span></div>
+
+      <div class="stage">
+        <figure class="app" aria-label="Panel de MetricSalon con datos de ejemplo" style="margin:0">
+          <div class="chrome" aria-hidden="true"><i></i><i></i><i></i><span>metricsalon · Panel del salón</span></div>
+          <div class="body">
+            <aside aria-hidden="true">
+              <b>MetricSalon</b>
+              <span class="on">Panel</span><span>Agenda</span><span>Nuevo cobro</span><span>Caja</span><span>Clientes</span><span>Mensajes</span><span>Equipo</span><span>Tiempos y rentabilidad</span>
+            </aside>
+            <main>
+              <div class="row"><h4>Septiembre</h4><div class="seg"><span class="on">Mes</span><span>Trimestre</span><span>Año</span></div></div>
+              <div class="kpis">
+                <div class="kpi"><small>Facturación</small><b>16.858 €</b><i>+6,2 % vs. agosto</i></div>
+                <div class="kpi"><small>Ticket medio</small><b>51,40 €</b><i>+1,8 %</i></div>
+                <div class="kpi"><small>Clientas atendidas</small><b>284</b><i>31 nuevas</i></div>
+                <div class="kpi"><small>Precio hora</small><b>38,20 €</b><i>+2,4 %</i></div>
+              </div>
+              <div class="split">
+                <div class="card"><small>Facturación de los últimos 12 meses</small>
+                  <div class="bars" aria-hidden="true"><span style="height:52%"></span><span style="height:58%"></span><span style="height:64%"></span><span style="height:60%"></span><span style="height:71%"></span><span style="height:77%"></span><span style="height:69%"></span><span style="height:48%"></span><span style="height:62%"></span><span style="height:74%"></span><span style="height:80%"></span><span class="now" style="height:86%"></span></div>
+                </div>
+                <div class="card"><small>Hoy toca escribir a</small>
+                  <div class="list">
+                    <div><span>Marta G. · le toca raíz</span><span class="tag">Recordar</span></div>
+                    <div><span>Lucía P. · 70 días sin venir</span><span class="tag red">En riesgo</span></div>
+                    <div><span>Carmen R. · primera visita</span><span class="tag green">2.ª visita</span></div>
+                    <div><span>Elena S. · cita mañana</span><span class="tag ochre">Confirmar</span></div>
+                  </div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </figure>
+        <div class="floating f1" aria-hidden="true"><span class="tag green">Nueva reserva online</span><b>Sábado 10:00 · Mechas</b><span style="color:var(--muted)">Ana · con Laura · 120 min</span></div>
+        <div class="floating f2" aria-hidden="true"><span class="tag red">Por debajo de 0,85 €/min</span><b>Color raíz: 0,75 €/min</b><span style="color:var(--muted)">73 min reales · subir a 63 €</span></div>
+      </div>
     </div>
   </section>
 
-  <section class="block" aria-labelledby="pains-title">
+  <div class="works">
+    <div class="wrap">
+      <p>Funciona con lo que tu salón ya usa</p>
+      <ul><li>Tu TPV</li><li>WhatsApp Business</li><li>Google Calendar</li><li>Booksy</li><li>Treatwell</li><li>Fresha</li><li>Excel</li></ul>
+    </div>
+  </div>
+
+  <section class="block" id="producto" aria-labelledby="product-title">
     <div class="wrap">
       <div class="head">
-        <div class="eyebrow">El día a día de un salón</div>
-        <h2 id="pains-title">Los datos ya están en tu salón. Solo falta verlos y usarlos.</h2>
+        <span class="eyebrow">Producto</span>
+        <h2 id="product-title">Todo tu salón en un solo programa.</h2>
+        <p>Deja de saltar entre la libreta, el TPV y el móvil. Cada cobro, cita y mensaje se convierte en información para decidir.</p>
       </div>
-      <div class="pains">
-        <div class="pain"><h3>La caja sabe mucho, pero nadie la mira</h3><p>Cada cobro dice qué se vende, quién vende y cuánto. Sin un panel, esa información se queda en el TPV.</p></div>
-        <div class="pain"><h3>Las clientas se van sin avisar</h3><p>Una clienta que venía cada cinco semanas deja de venir y nadie lo nota hasta meses después.</p></div>
-        <div class="pain"><h3>WhatsApp vive en el móvil de alguien</h3><p>Las conversaciones se pierden, nadie sabe quién respondió y lo que cuenta la clienta no llega a su ficha.</p></div>
+
+      <div class="tabs" role="tablist" aria-label="Módulos de MetricSalon">
+        <button role="tab" id="t-panel" aria-controls="p-panel" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z"/></svg>Panel</button>
+        <button role="tab" id="t-agenda" aria-controls="p-agenda" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4"/></svg>Agenda y reservas</button>
+        <button role="tab" id="t-caja" aria-controls="p-caja" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18v12H3zM3 10h18M7 15h4"/></svg>Caja</button>
+        <button role="tab" id="t-clientes" aria-controls="p-clientes" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>Clientas</button>
+        <button role="tab" id="t-mensajes" aria-controls="p-mensajes" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>WhatsApp</button>
+        <button role="tab" id="t-tiempos" aria-controls="p-tiempos" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16M12 9v4l2.5 2M9 2h6"/></svg>Rentabilidad</button>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-panel" aria-labelledby="t-panel">
+        <div class="copy">
+          <h3>Tus números claros, sin hacer cuentas.</h3>
+          <p>El panel se llena solo con cada cobro. Comparas cada mes con el anterior y con el mismo mes del año pasado.</p>
+          <ul class="ticks"><li>Facturación, crecimiento, ticket medio y precio hora.</li><li>Servicios frente a producto, mujer y hombre, ocupación del equipo.</li><li>Recomendaciones del mes con el impacto en euros.</li></ul>
+        </div>
+        <div class="shot"><div class="app"><main>
+          <div class="kpis">
+            <div class="kpi"><small>Servicios</small><b>13.940 €</b><i>83 %</i></div>
+            <div class="kpi"><small>Producto</small><b>2.918 €</b><i>17 %</i></div>
+            <div class="kpi"><small>Ocupación</small><b>78 %</b><i>+4 pts</i></div>
+            <div class="kpi"><small>Nuevas</small><b>31</b><i>+9</i></div>
+          </div>
+          <div class="card"><small>Recomendación del mes</small><p style="font-size:14px">Tienes <b>64 horas de equipo sin reservar</b>. Llenar la mitad con una campaña de martes y miércoles supondría unos <b>1.000 € más al mes</b>.</p></div>
+        </main></div></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-agenda" aria-labelledby="t-agenda" hidden>
+        <div class="copy">
+          <h3>Una agenda tan fácil como cobrar, y tus clientas reservan solas.</h3>
+          <p>Eliges la clienta y los servicios, y MetricSalon suma la duración y te propone los huecos libres de cada estilista.</p>
+          <ul class="ticks"><li>Vista semanal por estilista, también desde el móvil.</li><li>Página de reservas online para compartir en WhatsApp, Instagram y Google.</li><li>¿Ya usas Booksy, Treatwell, Fresha o Google Calendar? Las citas entran solas.</li></ul>
+        </div>
+        <div class="shot"><div class="app"><main>
+          <div class="row"><h4>Semana del 13 al 17</h4><span class="tag green">3 reservas online hoy</span></div>
+          <div class="week" aria-hidden="true">
+            <span></span><span class="h">Lun</span><span class="h">Mar</span><span class="h">Mié</span><span class="h x">Jue</span><span class="h x">Vie</span>
+            <span class="t">10:00</span><span class="c"><b class="p">Marta · Color</b></span><span class="c"></span><span class="c tall"><b class="o">Ana · Mechas</b></span><span class="c x"><b class="g">Lucía · Corte</b></span><span class="c x"></span>
+            <span class="t">11:00</span><span class="c"><b class="bl">Pedro · Barba</b></span><span class="c"><b class="p">Elena · Peinado</b></span><span class="c"></span><span class="c x"></span><span class="c x"><b class="o">Sara · Keratina</b></span>
+            <span class="t">12:00</span><span class="c"></span><span class="c"><b class="g">Carmen · Corte</b></span><span class="c"><b class="bl">Javi · Corte</b></span><span class="c x"><b class="p">Rosa · Color</b></span><span class="c x"></span>
+            <span class="t">13:00</span><span class="c"><b class="o">Irene · Tratamiento</b></span><span class="c"></span><span class="c"><b class="p">Nuria · Color</b></span><span class="c x"></span><span class="c x"><b class="g">Laia · Corte</b></span>
+          </div>
+        </main></div></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-caja" aria-labelledby="t-caja" hidden>
+        <div class="copy">
+          <h3>Caja y cobros, sin cambiar de TPV.</h3>
+          <p>Importa las ventas de tu TPV o cobra desde MetricSalon. Clientas, servicios y equipo se crean solos.</p>
+          <ul class="ticks"><li>Entradas, salidas, arqueo y cierre de caja diario.</li><li>Cronómetro al sentar a la clienta: mides el tiempo real de cada servicio.</li><li>Pedidos de producto según lo que consume tu salón.</li></ul>
+        </div>
+        <div class="shot"><div class="app"><main>
+          <div class="row"><h4>Caja de hoy</h4><span class="tag green">Cuadrada</span></div>
+          <table class="tbl">
+            <thead><tr><th>Hora</th><th>Clienta</th><th>Concepto</th><th class="n">Importe</th></tr></thead>
+            <tbody>
+              <tr><td>10:42</td><td>Marta G.</td><td>Color + corte</td><td class="n">78,00 €</td></tr>
+              <tr><td>11:15</td><td>Pedro L.</td><td>Corte caballero</td><td class="n">18,00 €</td></tr>
+              <tr><td>12:30</td><td>Elena S.</td><td>Peinado + champú</td><td class="n">42,50 €</td></tr>
+              <tr><td>13:05</td><td>—</td><td>Compra de toallas</td><td class="n" style="color:var(--red)">−24,00 €</td></tr>
+            </tbody>
+          </table>
+          <div class="row"><small style="color:var(--muted)">Efectivo 96,00 € · Tarjeta 42,50 €</small><b>114,50 €</b></div>
+        </main></div></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-clientes" aria-labelledby="t-clientes" hidden>
+        <div class="copy">
+          <h3>La ficha de cada clienta, que se rellena sola.</h3>
+          <p>Sabes cuándo vuelve, qué se hace y qué compra. Y te avisa cuando una clienta fiel deja de venir.</p>
+          <ul class="ticks"><li>Visitas, frecuencia, servicios favoritos y producto comprado.</li><li>Clasificación automática: nueva, fiel, VIP, en riesgo.</li><li>Notas técnicas y lo que te ha contado por WhatsApp.</li></ul>
+        </div>
+        <div class="shot"><div class="app"><main>
+          <div class="row"><h4>Marta García</h4><span class="tag">VIP</span></div>
+          <div class="kpis">
+            <div class="kpi"><small>Visitas</small><b>14</b></div>
+            <div class="kpi"><small>Cada</small><b>34 días</b></div>
+            <div class="kpi"><small>Gasto medio</small><b>68 €</b></div>
+            <div class="kpi"><small>Producto</small><b>3 compras</b></div>
+          </div>
+          <div class="card"><small>Sus 3 servicios favoritos</small><div class="chips"><span class="tag">Color raíz</span><span class="tag">Corte</span><span class="tag">Tratamiento</span></div></div>
+        </main></div></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-mensajes" aria-labelledby="t-mensajes" hidden>
+        <div class="copy">
+          <h3>El WhatsApp del salón, en un solo sitio.</h3>
+          <p>Los mensajes al número de empresa llegan a la bandeja del salón y todo el equipo responde desde ahí.</p>
+          <ul class="ticks"><li>Recordatorios con el mensaje ya escrito: citas de mañana, a quién le toca volver, quién se aleja.</li><li>Lo que cuenta la clienta se guarda en su ficha: servicios que le interesan, cómo se siente, qué días prefiere.</li><li>También email y SMS.</li></ul>
+        </div>
+        <div class="shot"><div class="app"><main>
+          <div class="chat">
+            <div class="msg in">Hola, ¿tenéis hueco el sábado por la mañana para la raíz?</div>
+            <div class="msg out">¡Hola Marta! A las 10:00 con Laura. ¿Te lo reservo?</div>
+            <div class="msg in">¡Perfecto, gracias! 😊</div>
+          </div>
+          <div class="card"><small>Lo que sabemos por sus mensajes</small><div class="chips"><span class="tag green">Muy satisfecha</span><span class="tag">Le interesa el color</span><span class="tag ochre">Prefiere sábados</span></div></div>
+        </main></div></div>
+      </div>
+
+      <div class="panel" role="tabpanel" id="p-tiempos" aria-labelledby="t-tiempos" hidden>
+        <div class="copy">
+          <h3>Descubre qué servicios te dan dinero de verdad.</h3>
+          <p>MetricSalon mide cuánto dura cada servicio en realidad y lo compara con tu menú. Así sabes cuánto ganas por minuto.</p>
+          <ul class="ticks"><li>Minutos reales frente a minutos del menú, por servicio y por estilista.</li><li>Servicios rentables a partir de 0,85 €/min, y el precio al que deberías subir los demás.</li><li>Informe mensual en Excel con tu asesor.</li></ul>
+        </div>
+        <div class="shot"><div class="app"><main>
+          <table class="tbl">
+            <thead><tr><th>Servicio</th><th class="n">Menú</th><th class="n">Real</th><th class="n">€/min</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>Corte señora</td><td class="n">40 min</td><td class="n">38 min</td><td class="n">0,95</td><td><span class="tag green">Rentable</span></td></tr>
+              <tr><td>Mechas</td><td class="n">120 min</td><td class="n">131 min</td><td class="n">0,88</td><td><span class="tag green">Rentable</span></td></tr>
+              <tr><td>Color raíz</td><td class="n">60 min</td><td class="n">73 min</td><td class="n">0,75</td><td><span class="tag red">Subir a 63 €</span></td></tr>
+              <tr><td>Peinado</td><td class="n">30 min</td><td class="n">36 min</td><td class="n">0,69</td><td><span class="tag red">Subir a 31 €</span></td></tr>
+            </tbody>
+          </table>
+        </main></div></div>
       </div>
     </div>
   </section>
 
-  <section class="block" id="que-hace" aria-labelledby="features-title" style="padding-top:0">
+  <section class="block soft" aria-labelledby="all-title">
     <div class="wrap">
       <div class="head">
-        <div class="eyebrow">Qué hace</div>
-        <h2 id="features-title">Una herramienta para dirigir el salón, no para rellenar formularios.</h2>
+        <span class="eyebrow">Todo conectado</span>
+        <h2 id="all-title">Un cobro, una cita o un mensaje. Y todo se actualiza.</h2>
       </div>
-      <div class="features">
-        <article class="feature">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z"></path></svg>
-          <h3>Panel de métricas</h3>
-          <p>Facturación, crecimiento, ticket medio, precio hora, ocupación y consumo de producto, por mes, trimestre o año.</p>
-        </article>
-        <article class="feature">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"></path></svg>
-          <h3>Rendimiento del equipo</h3>
-          <p>Clientes, servicios, horas, ticket medio y venta de producto de cada persona, para dar objetivos claros.</p>
-        </article>
-        <article class="feature">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1a4 4 0 0 0-3-3.9M16 4.1a3.5 3.5 0 0 1 0 6.8"></path></svg>
-          <h3>Ficha de cada clienta</h3>
-          <p>Visitas, cada cuántos días vuelve, servicios favoritos, producto comprado, notas técnicas y aviso cuando lleva tiempo sin venir.</p>
-        </article>
-        <article class="feature star">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg>
-          <h3>WhatsApp del salón, en un solo sitio</h3>
-          <ul>
-            <li>Los mensajes al WhatsApp de empresa llegan a la bandeja del salón.</li>
-            <li>Todo el equipo responde desde ahí y asigna conversaciones.</li>
-            <li>Lo que cuenta la clienta se guarda en su ficha: qué servicios le interesan, cómo se siente, qué días prefiere, alergias.</li>
-          </ul>
-        </article>
-        <article class="feature">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4"></path></svg>
-          <h3>Recordatorios que traen clientas</h3>
-          <p>Cada día te dice a quién le toca volver, quién se está alejando y qué clientas nuevas no han repetido, con el mensaje ya escrito.</p>
-        </article>
-        <article class="feature">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18v12H3zM3 10h18M7 15h4"></path></svg>
-          <h3>Caja y cobros</h3>
-          <p>Importa las ventas de tu TPV o cobra desde Salon OS. Entradas, salidas, arqueo y cierre de caja diario.</p>
-        </article>
+      <div class="modules">
+        <article class="mod"><span class="ic p"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 8h6V4h-6z"/></svg></span><h3>Panel de métricas</h3><p>Mes, trimestre o año, con crecimiento comparable.</p></article>
+        <article class="mod"><span class="ic o"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16v14H4zM4 10h16M8 3v4M16 3v4"/></svg></span><h3>Agenda</h3><p>Semana por estilista y huecos libres al instante.</p></article>
+        <article class="mod"><span class="ic g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10v18H7zM11 18h2"/></svg></span><h3>Reservas online</h3><p>Tu página para que las clientas reserven 24 h.</p></article>
+        <article class="mod"><span class="ic b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18v12H3zM3 10h18M7 15h4"/></svg></span><h3>Caja y cobros</h3><p>Importa tu TPV o cobra aquí. Arqueo y cierre.</p></article>
+        <article class="mod"><span class="ic p"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></span><h3>Clientas</h3><p>Ficha automática y avisos de quién se aleja.</p></article>
+        <article class="mod"><span class="ic g"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg></span><h3>WhatsApp y recordatorios</h3><p>Bandeja compartida y mensajes ya escritos.</p></article>
+        <article class="mod"><span class="ic o"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-1a4 4 0 0 0-3-3.9M16 4.1a3.5 3.5 0 0 1 0 6.8"/></svg></span><h3>Equipo</h3><p>Ticket medio, horas y venta de producto por persona.</p></article>
+        <article class="mod"><span class="ic b"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16M12 9v4l2.5 2M9 2h6"/></svg></span><h3>Tiempos y rentabilidad</h3><p>Tiempo real y €/min de cada servicio.</p></article>
       </div>
     </div>
   </section>
 
-  <section class="block dark-band" id="como-funciona" aria-labelledby="how-title">
+  <section class="block" aria-labelledby="stats-title">
+    <div class="wrap">
+      <div class="head left">
+        <span class="eyebrow">Sin complicaciones</span>
+        <h2 id="stats-title">Lo pones en marcha en una tarde.</h2>
+      </div>
+      <div class="stats">
+        <div class="stat"><b>1 tarde</b><p>para dejarlo funcionando contigo, con tu menú y tu equipo.</p></div>
+        <div class="stat"><b>0 €</b><p>de alta. Sin permanencia: te vas cuando quieras con tus datos.</p></div>
+        <div class="stat"><b>12 meses</b><p>de ventas importadas del TPV para ver tus números desde el primer día.</p></div>
+        <div class="stat"><b>24 h</b><p>reservando: tus clientas piden cita aunque el salón esté cerrado.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="para-quien" aria-labelledby="who-title" style="padding-top:0">
     <div class="wrap">
       <div class="head">
-        <div class="eyebrow">Cómo funciona</div>
-        <h2 id="how-title">En una tarde lo tienes funcionando.</h2>
-        <p>No hace falta cambiar de TPV ni de número de teléfono.</p>
+        <span class="eyebrow">Para quién</span>
+        <h2 id="who-title">Para todo el salón, cada uno con lo suyo.</h2>
       </div>
-      <div class="steps">
-        <div class="step"><span class="n">1</span><h3>Conecta la caja</h3><p>Exporta las ventas de tu TPV y súbelas, o cobra directamente desde Salon OS. Clientes, servicios y equipo se crean solos.</p></div>
-        <div class="step"><span class="n">2</span><h3>Conecta WhatsApp</h3><p>Enlazamos tu WhatsApp Business de empresa para que los mensajes lleguen al salón. Mientras tanto, puedes usarlo en modo manual.</p></div>
-        <div class="step"><span class="n">3</span><h3>Decide con datos</h3><p>Cada semana: mira el panel, envía los recordatorios sugeridos y sigue las recomendaciones del mes.</p></div>
+      <div class="audience">
+        <div class="aud a"><h3>La dueña o el dueño</h3><p>Ve cuánto factura, qué servicios son rentables y qué hace cada persona del equipo. Decide con datos y no a ojo.</p></div>
+        <div class="aud b"><h3>El equipo</h3><p>Cobra, mira la agenda y responde WhatsApp desde un mismo sitio. Sin formación: si sabe usar el móvil, sabe usar MetricSalon.</p></div>
+        <div class="aud c"><h3>Las clientas</h3><p>Reservan desde el móvil en un minuto, reciben su recordatorio y añaden la cita a su calendario.</p></div>
       </div>
     </div>
   </section>
 
-  <section class="block" aria-labelledby="advice-title">
+  <section class="block soft" aria-labelledby="advice-title">
     <div class="wrap advice">
-      <div style="display:grid;gap:16px">
-        <div class="eyebrow">Herramienta y asesoría</div>
-        <h2 id="advice-title">No te dejamos solo con un panel.</h2>
-        <p style="font-size:18px;color:var(--ink-2)">Detrás de Salon OS hay asesoría estratégica para salones. Con tus números a la vista, te ayudamos a decidir.</p>
-        <ul>
+      <div style="display:grid;gap:18px">
+        <span class="eyebrow">Herramienta y asesoría</span>
+        <h2 id="advice-title">No te dejamos solo con un programa.</h2>
+        <p style="font-size:18px;color:var(--ink-2)">Detrás de MetricSalon hay asesoría estratégica para salones. Con tus números a la vista, te ayudamos a decidir.</p>
+        <ul class="ticks">
           <li>Revisión mensual de tus indicadores y plan de acción.</li>
           <li>Precios, ocupación y venta de producto: dónde está tu margen.</li>
           <li>Reposición de producto a tiempo, según lo que consume tu salón.</li>
@@ -290,64 +536,68 @@
       </div>
       <div class="quote">
         <small>Ejemplo de recomendación del mes</small>
-        <b>"Tienes 64 horas de equipo sin reservar. Llenar la mitad con una campaña de martes y miércoles supondría unos 1.000 € más al mes."</b>
-        <small>Generada a partir de la ocupación y la facturación por hora del salón.</small>
+        <b>«El color raíz os lleva 73 minutos y no 60. A 0,75 €/min, subirlo a 63 € supondría unos 400 € más al mes sin trabajar más horas.»</b>
+        <small>Generada a partir de los tiempos reales y la facturación del salón.</small>
       </div>
     </div>
   </section>
 
-  <section class="block" id="precios" aria-labelledby="pricing-title" style="padding-top:0">
+  <section class="block" id="precios" aria-labelledby="pricing-title">
     <div class="wrap">
       <div class="head">
-        <div class="eyebrow">Precios</div>
+        <span class="eyebrow">Precios</span>
         <h2 id="pricing-title">Empieza gratis. Quédate si te ayuda.</h2>
         <p>Sin permanencia ni coste de alta. IVA no incluido.</p>
       </div>
       <div class="plans">
         <div class="plan">
-          <h3>Prueba</h3>
+          <div class="top-row"><h3>Prueba</h3></div>
           <div class="price">0 € <small>30 días</small></div>
-          <ul><li>Todo Salon OS durante un mes</li><li>Te ayudamos a conectar caja y WhatsApp</li><li>Una sesión de revisión de resultados</li></ul>
-          <a class="btn primary" href="#prueba">Pedir la prueba</a>
+          <p class="desc">Para ver tus números antes de decidir.</p>
+          <ul class="ticks"><li>Todo MetricSalon durante un mes</li><li>Te ayudamos a conectar caja y WhatsApp</li><li>Sesión de revisión de resultados</li></ul>
+          <a class="btn" href="#prueba">Pedir la prueba</a>
         </div>
         <div class="plan">
-          <h3>Base</h3>
+          <div class="top-row"><h3>Base</h3></div>
           <div class="price">49 € <small>/ mes</small></div>
-          <ul><li>Panel de métricas y equipo</li><li>Clientes con ficha automática</li><li>Caja, cobros e importación del TPV</li><li>Mensajes y recordatorios en modo manual</li></ul>
+          <p class="desc">Para ordenar el salón.</p>
+          <ul class="ticks"><li>Panel de métricas y equipo</li><li>Agenda y reservas online</li><li>Clientas con ficha automática</li><li>Caja, cobros e importación del TPV</li><li>Recordatorios en modo manual</li></ul>
           <a class="btn" href="#prueba">Empezar con Base</a>
         </div>
         <div class="plan pick">
-          <span class="tag">Recomendado</span>
-          <h3>Pro</h3>
+          <div class="top-row"><h3>Pro</h3><span class="tag">Recomendado</span></div>
           <div class="price">79 € <small>/ mes</small></div>
-          <ul><li>Todo lo de Base</li><li>WhatsApp Business conectado: bandeja compartida y envíos automáticos</li><li>Resumen de cada clienta con IA</li><li>Asesoría mensual con tus números</li></ul>
+          <p class="desc">Para crecer con datos y asesoría.</p>
+          <ul class="ticks"><li>Todo lo de Base</li><li>WhatsApp Business conectado: bandeja compartida y envíos automáticos</li><li>Tiempos reales y rentabilidad por servicio</li><li>Conexión con Booksy, Treatwell, Fresha o Google Calendar</li><li>Asesoría mensual con tus números</li></ul>
           <a class="btn primary" href="#prueba">Empezar con Pro</a>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="block" id="preguntas" aria-labelledby="faq-title" style="padding-top:0">
+  <section class="block soft" id="preguntas" aria-labelledby="faq-title">
     <div class="wrap">
-      <div class="head"><div class="eyebrow">Preguntas frecuentes</div><h2 id="faq-title">Lo que suelen preguntarnos</h2></div>
+      <div class="head"><span class="eyebrow">Preguntas frecuentes</span><h2 id="faq-title">Lo que suelen preguntarnos</h2></div>
       <div class="faq">
-        <details><summary>¿Tengo que cambiar de TPV o de programa de caja?</summary><p>No. Salon OS importa las ventas que exporta tu TPV (Excel o CSV) y, si tu sistema lo permite, se conecta para que lleguen solas. Si no tienes TPV, puedes cobrar desde Salon OS.</p></details>
+        <details><summary>¿Tengo que cambiar de TPV o de programa de caja?</summary><p>No. MetricSalon importa las ventas que exporta tu TPV (Excel o CSV) y, si tu sistema lo permite, se conecta para que lleguen solas. Si no tienes TPV, puedes cobrar desde MetricSalon.</p></details>
+        <details><summary>Ya uso Booksy, Treatwell o Fresha. ¿Tengo que dejarlos?</summary><p>No. Conectamos tu sistema de reservas para que las citas entren solas en la agenda de MetricSalon, también cuando se cambian o se cancelan. Revisamos contigo qué permite tu plataforma.</p></details>
         <details><summary>¿Funciona con el WhatsApp que ya usamos?</summary><p>Para recibir los mensajes en la bandeja del salón hace falta la API oficial de WhatsApp Business con el número de empresa; te ayudamos a activarla. Mientras tanto, el modo manual registra cada mensaje y abre WhatsApp para enviarlo.</p></details>
+        <details><summary>¿Desde qué dispositivos se usa?</summary><p>Desde cualquiera con navegador: ordenador, tablet en recepción o móvil. No hay que instalar nada.</p></details>
         <details><summary>¿Qué pasa con los datos de mis clientas?</summary><p>Cada salón solo ve sus propios datos. Las contraseñas se guardan cifradas y puedes pedir una copia o el borrado de tus datos cuando quieras. Te facilitamos el contrato de encargado del tratamiento (RGPD).</p></details>
-        <details><summary>¿Mi equipo necesita formación?</summary><p>No. El equipo cobra como siempre; las métricas, las fichas y los recordatorios se generan solos. En la primera sesión te enseñamos el panel en media hora.</p></details>
         <details><summary>¿Puedo darme de baja cuando quiera?</summary><p>Sí, sin permanencia. Si te vas, te damos tus datos exportados.</p></details>
       </div>
     </div>
   </section>
 
-  <section class="block" id="prueba" aria-labelledby="trial-title" style="padding-top:0">
-    <div class="wrap trial">
-      <div class="trial-copy">
-        <div class="eyebrow">Prueba gratis</div>
-        <h2 id="trial-title">Pruébalo 30 días en tu salón.</h2>
-        <p style="font-size:18px;color:var(--ink-2)">Déjanos tus datos y te contactamos en 24 horas laborables para dejarlo funcionando contigo.</p>
-        <ul><li>Te creamos el acceso y cargamos tu menú de servicios.</li><li>Importamos tus ventas del último año para que veas tus números desde el primer día.</li><li>Revisamos juntos los resultados al final del mes.</li></ul>
-      </div>
+  <section class="block" id="prueba" aria-labelledby="trial-title" style="padding-bottom:0">
+    <div class="wrap">
+      <div class="trial-band">
+        <div class="trial-copy">
+          <span class="eyebrow">Prueba gratis</span>
+          <h2 id="trial-title">Pruébalo 30 días en tu salón.</h2>
+          <p>Déjanos tus datos y te contactamos en 24 horas laborables para dejarlo funcionando contigo.</p>
+          <ol><li>Te creamos el acceso y cargamos tu menú de servicios.</li><li>Importamos tus ventas del último año para que veas tus números desde el primer día.</li><li>Revisamos juntos los resultados al final del mes.</li></ol>
+        </div>
       <form class="lead" id="leadForm" novalidate>
         <label>Tu nombre<input name="name" id="lf-name" autocomplete="name" required></label>
         <label>Nombre del salón<input name="salon_name" id="lf-salon" autocomplete="organization"></label>
@@ -359,14 +609,23 @@
         <label class="hp" aria-hidden="true">No rellenar<input name="website" tabindex="-1" autocomplete="off"></label>
         <div class="form-msg" id="leadMsg" role="status" hidden></div>
         <button class="btn primary full" type="submit" id="leadSubmit">Quiero mi prueba gratis</button>
-        <p class="legal full">Usaremos tus datos solo para contactarte sobre Salon OS.</p>
+        <p class="legal full">Usaremos tus datos solo para contactarte sobre MetricSalon.</p>
       </form>
+      </div>
     </div>
   </section>
 </main>
 
 <footer>
-  <div class="wrap"><span>Salon OS · CRM, caja y comunicación para salones</span><span><a href="app">Entrar en mi cuenta</a></span></div>
+  <div class="wrap">
+    <div class="cols">
+      <div style="display:grid;gap:12px;align-content:start"><a class="logo" href="#"><i aria-hidden="true">M</i>MetricSalon</a><p>Agenda, caja, clientas y WhatsApp para peluquerías y salones de belleza.</p></div>
+      <div><h4>Producto</h4><ul><li><a href="#producto">Módulos</a></li><li><a href="#precios">Precios</a></li><li><a href="#preguntas">Preguntas</a></li></ul></div>
+      <div><h4>Empieza</h4><ul><li><a href="#prueba">Prueba gratis</a></li><li><a href="app" id="footDemo">Demo</a></li></ul></div>
+      <div><h4>Cuenta</h4><ul><li><a href="app">Entrar en mi cuenta</a></li></ul></div>
+    </div>
+    <div class="base"><span>© MetricSalon</span><span>Hecho para salones</span></div>
+  </div>
 </footer>
 
 <script src="landing.js"></script>

@@ -1,4 +1,4 @@
-/* Envío de la solicitud de prueba. En el servidor de Salon OS va a /api/leads
+/* Envío de la solicitud de prueba. En el servidor de MetricSalon va a /api/leads
    y aparece en la consola del distribuidor. Una página que aloje esta web en
    otro sitio puede definir window.salonSubmitLead(datos) para guardarla. */
 (function () {
@@ -35,4 +35,31 @@
       btn.textContent = 'Quiero mi prueba gratis';
     }
   });
+})();
+
+/* Pestañas de módulos (con flechas del teclado) y borde de la cabecera al desplazarse. */
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  function select(tab, focus) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+    if (focus) tab.focus();
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { select(t, false); });
+    t.addEventListener('keydown', function (e) {
+      var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (d) { e.preventDefault(); select(tabs[(i + d + tabs.length) % tabs.length], true); }
+    });
+  });
+  var top = document.getElementById('top');
+  if (top) {
+    var onScroll = function () { top.classList.toggle('scrolled', window.scrollY > 8); };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  }
 })();

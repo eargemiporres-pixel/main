@@ -1,5 +1,5 @@
 /* Sustituto de node:sqlite para el navegador, sobre sql.js (SQLite compilado
-   a JavaScript). Implementa solo lo que usa Salon OS: exec, prepare y
+   a JavaScript). Implementa solo lo que usa MetricSalon: exec, prepare y
    get/all/run con parámetros posicionales. Las sentencias se reutilizan. */
 let SQL = null;
 export function setSql(sql) { SQL = sql; }

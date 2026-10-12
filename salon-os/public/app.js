@@ -1,4 +1,4 @@
-/* Salon OS · interfaz (sin frameworks). Rutas por hash: #/panel, #/clientes… */
+/* MetricSalon · interfaz (sin frameworks). Rutas por hash: #/panel, #/clientes… */
 
 /* ---------- Utilidades ---------- */
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -210,7 +210,7 @@ async function render() {
   const salonName = isAdmin() ? S.me.salons.find((s) => s.id === S.salonId)?.name : S.me.salon?.name;
   app.innerHTML = `<div class="shell">
     <aside class="side">
-      <div class="brand"><b>Salon OS</b><span>${esc(isAdmin() ? 'Consola del distribuidor' : salonName || '')}</span></div>
+      <div class="brand"><b>MetricSalon</b><span>${esc(isAdmin() ? 'Consola del distribuidor' : salonName || '')}</span></div>
       ${isAdmin() ? `<nav class="nav" aria-label="Distribuidor">
           <a href="#/consola" ${page === 'consola' ? 'aria-current="page"' : ''}>${icon('consola')}Red de salones</a>
         </nav>
@@ -264,7 +264,7 @@ function renderLogin(app) {
   document.body.classList.remove('console');
   app.innerHTML = `<div class="login">
     <section class="login-art">
-      <b>Salon OS</b>
+      <b>MetricSalon</b>
       <div style="display:flex;flex-direction:column;gap:16px">
         <h1>Los números de tu salón, al día y sin teclear dos veces.</h1>
         <p>Facturación, clientes, equipo, caja y producto en un solo panel. Conectado a tu TPV.</p>
@@ -1617,7 +1617,7 @@ async function renderChannels(box) {
         <label class="field">Phone number ID (de Meta)<input name="wa_phone_number_id" value="${esc(c.wa_phone_number_id || '')}" autocomplete="off"></label>
         <label class="field">Token de acceso<input name="wa_token" type="password" autocomplete="off" placeholder="${c.wa_token_set ? 'Guardado · escribe uno nuevo para cambiarlo' : 'Pega aquí el token permanente'}"></label>
         <div class="field">URL del webhook (configúrala en Meta)<code class="key">${esc(webhook)}</code>
-          <span class="hint">${c.webhookReady ? 'El token de verificación te lo da tu proveedor de Salon OS.' : 'Falta configurar WA_VERIFY_TOKEN en el servidor para activar la recepción.'}</span></div>
+          <span class="hint">${c.webhookReady ? 'El token de verificación te lo da tu proveedor de MetricSalon.' : 'Falta configurar WA_VERIFY_TOKEN en el servidor para activar la recepción.'}</span></div>
         <div class="form-actions">${c.status.whatsapp === 'api' ? '<button type="button" class="btn small danger" id="waOff">Desconectar</button>' : ''}<button class="btn primary" type="submit">Guardar WhatsApp</button></div>
       </form>
       <form id="emailForm" class="channel">
@@ -1850,7 +1850,7 @@ VIEWS.reporte = async (main) => {
     <div class="card-head"><h2>Precios y tiempos de los servicios trabajados</h2><span class="muted">${fmt(t.summary.measuredShare * 100)} % con tiempo medido</span></div>
     ${serviceTable(t.services)}
   </section>
-  <p class="muted print-only" style="font-size:12px">Generado por Salon OS el ${fdate(r.generatedAt.slice(0, 10))}.</p>`;
+  <p class="muted print-only" style="font-size:12px">Generado por MetricSalon el ${fdate(r.generatedAt.slice(0, 10))}.</p>`;
   bindPeriod(main);
   $('#printReport').onclick = () => window.print();
   $('#dlXlsx').onclick = async (e) => {
