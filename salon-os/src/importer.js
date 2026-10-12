@@ -66,8 +66,8 @@ export function importTickets(db, salonId, tickets, source = 'api', { dryRun = f
   const insSrv = db.prepare('INSERT INTO services (salon_id, name, price, duration_min) VALUES (?, ?, ?, ?)');
   const insPrd = db.prepare('INSERT INTO products (salon_id, name, price) VALUES (?, ?, ?)');
   const insCli = db.prepare('INSERT INTO clients (salon_id, name, phone, email, gender, created_at) VALUES (?, ?, ?, ?, ?, ?)');
-  const insTk = db.prepare(`INSERT INTO tickets (salon_id, client_id, employee_id, date, time_start, time_end, method, total, source, external_ref)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const insTk = db.prepare(`INSERT INTO tickets (salon_id, client_id, employee_id, date, time_start, time_end, method, total, source, external_ref, time_source)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   const insLine = db.prepare(`INSERT INTO ticket_lines (ticket_id, kind, item_id, name, qty, unit_price, total, employee_id, duration_min)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 
@@ -140,7 +140,9 @@ export function importTickets(db, salonId, tickets, source = 'api', { dryRun = f
       res.created++;
       res.revenue += total;
       if (dryRun) return;
-      const tid = Number(insTk.run(salonId, cid, mainEmp, t.date, normTime(t.time_start), normTime(t.time_end), normMethod(t.method), total, source, ref).lastInsertRowid);
+      const ts = normTime(t.time_start);
+      const te = normTime(t.time_end);
+      const tid = Number(insTk.run(salonId, cid, mainEmp, t.date, ts, te, normMethod(t.method), total, source, ref, ts && te ? source : '').lastInsertRowid);
       for (const l of lines) {
         insLine.run(tid, l.kind, l.itemId, l.name, l.qty, l.price, l.total, l.employee ? employeeId(l.employee) : mainEmp, l.duration);
       }

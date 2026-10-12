@@ -36,6 +36,8 @@ const ICONS = {
   ajustes: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   consola: 'M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6',
   mensajes: 'M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z',
+  tiempos: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M12 7v5l3 2',
+  reporte: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3'
 };
 const icon = (name, size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICONS[name]}"></path></svg>`;
@@ -172,7 +174,7 @@ const go = (hash) => { location.hash = hash; };
 
 const SALON_NAV = [
   ['panel', 'Panel'], ['cobro', 'Nuevo cobro'], ['caja', 'Caja'], ['clientes', 'Clientes'], ['mensajes', 'Mensajes'],
-  ['equipo', 'Equipo y horas'], ['catalogo', 'Servicios y productos'], ['pedidos', 'Pedidos de producto'],
+  ['equipo', 'Equipo y horas'], ['catalogo', 'Servicios y productos'], ['tiempos', 'Tiempos y rentabilidad'], ['pedidos', 'Pedidos de producto'],
   ['importar', 'Conectar TPV / importar'], ['ajustes', 'Ajustes']
 ];
 const VIEWS = {};
@@ -212,7 +214,8 @@ async function render() {
           <a href="#/consola" ${page === 'consola' ? 'aria-current="page"' : ''}>${icon('consola')}Red de salones</a>
         </nav>
         <div class="nav-label">Ver salón</div>
-        <select id="salonPick" aria-label="Salón">${S.me.salons.map((s) => `<option value="${s.id}" ${s.id === S.salonId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}
+        <select id="salonPick" aria-label="Salón">${S.me.salons.map((s) => `<option value="${s.id}" ${s.id === S.salonId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+        <nav class="nav" aria-label="Reporte"><a href="#/reporte" ${page === 'reporte' ? 'aria-current="page"' : ''}>${icon('reporte')}Reporte del salón</a></nav>` : ''}
       <nav class="nav" aria-label="Salón">
         ${SALON_NAV.map(([p, label]) => `<a href="#/${p}" ${page === p ? 'aria-current="page"' : ''}>${icon(p)}${label}${p === 'mensajes' ? '<span class="nav-badge hidden" id="unreadBadge"></span>' : ''}</a>`).join('')}
       </nav>
@@ -584,13 +587,13 @@ VIEWS.cobro = async (main, { query }) => {
   if (pre) {
     try { st.client = (await api(`/api/clients/${pre}`)).client; } catch { /* ignorar */ }
   }
-  const now = new Date();
-  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const hm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
   main.innerHTML = `
   <header class="page-head"><div><div class="eyebrow">Para salones sin TPV conectado, o para cobros sueltos</div><h1>Nuevo cobro</h1></div>
     <div class="head-actions"><a class="btn" href="#/caja">Ver caja de hoy</a></div></header>
   ${employees.length && services.length ? '' : '<div class="notice info">Antes de cobrar, añade tu equipo en «Equipo y horas» y tus servicios en «Servicios y productos».</div>'}
+  <section class="card running hidden" id="running" aria-label="Servicios en curso"></section>
   <div class="pos">
     <section class="card">
       <div class="card-head"><div class="seg" role="group" aria-label="Tipo"><button type="button" data-tab="service" aria-pressed="true">Servicios</button><button type="button" data-tab="product" aria-pressed="false">Productos</button></div>
@@ -605,13 +608,17 @@ VIEWS.cobro = async (main, { query }) => {
       </div>
       <div id="cart"></div>
       <div class="methods" role="group" aria-label="Método de pago">${['tarjeta', 'efectivo', 'bizum'].map((mth) => `<button type="button" data-method="${mth}" aria-pressed="${mth === 'tarjeta'}">${METHOD[mth]}</button>`).join('')}</div>
+      <div id="timerNote"></div>
       <div class="form-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
         <label class="field">Fecha<input type="date" id="tDate" value="${S.me.today}" max="${S.me.today}"></label>
         <label class="field">Inicio<input type="time" id="tStart"></label>
-        <label class="field">Fin<input type="time" id="tEnd" value="${hhmm}"></label>
+        <label class="field">Fin<input type="time" id="tEnd"></label>
       </div>
-      <span class="muted" style="font-size:12px">La hora de inicio y fin permite medir el tiempo real por cliente.</span>
-      <button type="button" class="btn primary" id="charge" style="min-height:52px;font-size:16px">Cobrar</button>
+      <span class="muted" style="font-size:12px">Para medir el tiempo real, pulsa «Empezar servicio» cuando la clienta se sienta y cobra al terminar. Si no, puedes escribir la hora de inicio y fin.</span>
+      <div class="pos-actions">
+        <button type="button" class="btn" id="startTimer">Empezar servicio</button>
+        <button type="button" class="btn primary" id="charge">Cobrar</button>
+      </div>
     </section>
   </div>`;
 
@@ -639,13 +646,53 @@ VIEWS.cobro = async (main, { query }) => {
     $$('[data-qty]').forEach((el) => (el.onchange = () => { st.lines[el.dataset.qty].qty = Math.max(1, Number(el.value) || 1); renderCart(); }));
     $$('[data-price]').forEach((el) => (el.onchange = () => { const v = parseNum(el.value); if (v >= 0) st.lines[el.dataset.price].price = v; renderCart(); }));
     $$('[data-del]').forEach((el) => (el.onclick = () => { st.lines.splice(Number(el.dataset.del), 1); renderCart(); }));
-    const mins = st.lines.filter((l) => l.kind === 'service').reduce((s, l) => s + l.duration * l.qty, 0);
-    if (mins && !$('#tStart').dataset.touched) {
-      const [h, m] = $('#tEnd').value.split(':').map(Number);
-      const start = h * 60 + m - mins;
-      if (start > 0) $('#tStart').value = `${String(Math.floor(start / 60)).padStart(2, '0')}:${String(start % 60).padStart(2, '0')}`;
-    }
   };
+
+  /* Servicios en curso (cronómetro). */
+  const renderTimerNote = () => {
+    const v = st.openVisit;
+    $('#timerNote').innerHTML = v ? `<div class="notice">Cronómetro en marcha desde las ${hm(new Date(v.started_at))} · ${Math.max(0, Math.round((Date.now() - Date.parse(v.started_at)) / 60000))} min. Al cobrar se guarda el tiempo real.</div>` : '';
+    $('#tStart').disabled = !!v;
+    $('#tEnd').disabled = !!v;
+    if (v) { $('#tStart').value = hm(new Date(v.started_at)); $('#tEnd').value = hm(new Date()); }
+    $('#startTimer').classList.toggle('hidden', !!v);
+  };
+  const renderRunning = async () => {
+    const box = $('#running');
+    if (!box) return;
+    const { visits } = await api('/api/visits/open');
+    box.classList.toggle('hidden', !visits.length);
+    box.innerHTML = `<div class="card-head"><h2>En curso · ${visits.length}</h2><span class="muted">Midiendo el tiempo real de cada servicio</span></div>
+      <div class="running-list">${visits.map((v) => `<div class="running-item">
+        <span class="clock" data-since="${esc(v.started_at)}">${Math.max(0, Math.round((Date.now() - Date.parse(v.started_at)) / 60000))} min</span>
+        <span class="txt"><b>${esc(v.client_name || 'Sin cliente')}</b><small>${esc(v.lines.filter((l) => l.kind === 'service').map((l) => l.name).join(' + '))}${v.employee_name ? ` · ${esc(v.employee_name)}` : ''} · desde las ${hm(new Date(v.started_at))}</small></span>
+        <button type="button" class="btn small primary" data-load="${v.id}">Cobrar</button>
+        <button type="button" class="icon-btn" data-drop="${v.id}" aria-label="Descartar servicio en curso">${icon('trash', 16)}</button>
+      </div>`).join('')}</div>`;
+    $$('[data-load]', box).forEach((b) => (b.onclick = () => {
+      const v = visits.find((x) => String(x.id) === b.dataset.load);
+      st.openVisit = v;
+      st.lines = v.lines.map((l) => ({ ...l }));
+      if (v.employee_id) $('#emp').value = v.employee_id;
+      st.client = v.client_id ? { id: v.client_id, name: v.client_name, phone: '' } : null;
+      st.newClient = !v.client_id && v.client_name ? { name: v.client_name, phone: '', gender: 'M' } : null;
+      renderCart();
+      renderClient();
+      renderTimerNote();
+      $('#charge').scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }));
+    $$('[data-drop]', box).forEach((b) => (b.onclick = async () => {
+      if (!(await confirmAction('¿Descartar este servicio en curso? No se cobra ni se guarda su tiempo.', 'Descartar'))) return;
+      await api(`/api/visits/open/${b.dataset.drop}`, { method: 'DELETE', body: {} });
+      if (st.openVisit && String(st.openVisit.id) === b.dataset.drop) { st.openVisit = null; renderTimerNote(); }
+      renderRunning();
+    }));
+  };
+  const tick = setInterval(() => {
+    if (!document.body.contains(main) || !$('#running')) return clearInterval(tick);
+    $$('#running .clock').forEach((c) => { c.textContent = `${Math.max(0, Math.round((Date.now() - Date.parse(c.dataset.since)) / 60000))} min`; });
+    if (st.openVisit) renderTimerNote();
+  }, 30000);
 
   const renderClient = () => {
     const box = $('#clientBox');
@@ -695,15 +742,34 @@ VIEWS.cobro = async (main, { query }) => {
     $$('[data-method]', main).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   }));
   $('#itemQ').oninput = renderItems;
-  $('#tStart').oninput = (e) => (e.target.dataset.touched = '1');
+  $('#startTimer').onclick = async () => {
+    if (!st.lines.some((l) => l.kind === 'service')) return toast('Añade el servicio que vas a empezar', true);
+    try {
+      await api('/api/visits/open', { method: 'POST', body: {
+        employee_id: Number($('#emp').value) || null,
+        client_id: st.client?.id || null,
+        client_name: st.newClient?.name || '',
+        lines: st.lines.map((l) => ({ kind: l.kind, item_id: l.item_id, qty: l.qty, price: l.price }))
+      } });
+      toast('Cronómetro en marcha. Cobra cuando termine el servicio.');
+      st.lines = [];
+      st.client = null;
+      st.newClient = null;
+      renderCart();
+      renderClient();
+      renderRunning();
+    } catch (err) { toast(err.message, true); }
+  };
   $('#charge').onclick = async () => {
     if (!st.lines.length) return toast('Añade al menos un servicio o producto', true);
+    const v = st.openVisit;
     const body = {
       employee_id: Number($('#emp').value) || null,
       method: st.method,
       date: $('#tDate').value,
-      time_start: $('#tStart').value || null,
-      time_end: $('#tEnd').value || null,
+      time_start: v ? hm(new Date(v.started_at)) : $('#tStart').value || null,
+      time_end: v ? hm(new Date()) : $('#tEnd').value || null,
+      open_visit_id: v?.id || null,
       lines: st.lines.map((l) => ({ kind: l.kind, item_id: l.item_id, qty: l.qty, price: l.price }))
     };
     if (st.client) body.client_id = st.client.id;
@@ -714,15 +780,20 @@ VIEWS.cobro = async (main, { query }) => {
       st.lines = [];
       st.client = null;
       st.newClient = null;
+      st.openVisit = null;
       $('#tStart').value = '';
-      delete $('#tStart').dataset.touched;
+      $('#tEnd').value = '';
       renderCart();
       renderClient();
+      renderTimerNote();
+      renderRunning();
     } catch (err) { toast(err.message, true); }
   };
   renderItems();
   renderCart();
   renderClient();
+  renderTimerNote();
+  renderRunning();
 };
 
 /* ---------- Caja ---------- */
@@ -1112,13 +1183,14 @@ VIEWS.consola = async (main) => {
       <td class="r num">${eur(s.revenue)}</td><td class="r num ${toneOf(s.growth)}"><b>${pct(s.growth)}</b></td><td class="r num">${eur(s.avgTicket, 2)}</td>
       <td class="r num">${s.occupancy == null ? '—' : `${fmt(s.occupancy * 100)} %`}</td><td class="r num">${s.consumptionPct == null ? '—' : `${fmt(s.consumptionPct, 1)} %`}</td>
       <td class="r num">${s.signal.daysLeft == null ? '—' : `${s.signal.daysLeft} d`}</td><td><span class="tag ${SIGNAL_TAG[s.signal.level]}">${s.signal.level}</span></td>
-      <td class="r" style="white-space:nowrap"><button type="button" class="btn small" data-edit="${s.id}">Plan</button> <button type="button" class="btn small primary" data-view="${s.id}">Ver panel</button></td></tr>`).join('') || '<tr><td colspan="10" class="empty">Ningún salón con este filtro.</td></tr>'}</tbody></table></div>
+      <td class="r" style="white-space:nowrap"><button type="button" class="btn small" data-edit="${s.id}">Plan</button> <button type="button" class="btn small" data-report="${s.id}">Reporte</button> <button type="button" class="btn small primary" data-view="${s.id}">Ver panel</button></td></tr>`).join('') || '<tr><td colspan="10" class="empty">Ningún salón con este filtro.</td></tr>'}</tbody></table></div>
   </section>
   <section class="card" id="leads" aria-label="Solicitudes de prueba"><div class="loading">Cargando solicitudes…</div></section>`;
 
   $('#cRef').onchange = (e) => { if (e.target.value) { S.consoleRef = e.target.value; render(); } };
   $$('[data-cf]', main).forEach((btn) => (btn.onclick = () => { S.consoleFilter = btn.dataset.cf; render(); }));
   $$('[data-view]', main).forEach((btn) => (btn.onclick = () => { S.salonId = Number(btn.dataset.view); store.set('salonId', S.salonId); go('#/panel'); }));
+  $$('[data-report]', main).forEach((btn) => (btn.onclick = () => { S.salonId = Number(btn.dataset.report); store.set('salonId', S.salonId); go('#/reporte'); }));
   $$('[data-edit]', main).forEach((btn) => (btn.onclick = () => {
     const s = d.salons.find((x) => String(x.id) === btn.dataset.edit);
     openForm({
@@ -1591,5 +1663,192 @@ async function renderLeads(box) {
   $$('[data-lead]', box).forEach((sel) => (sel.onchange = async () => { await api(`/api/admin/leads/${sel.dataset.lead}`, { method: 'PUT', body: { status: sel.value } }); toast('Solicitud actualizada'); }));
   $$('[data-onboard]', box).forEach((b) => (b.onclick = () => salonForm(leads.find((l) => String(l.id) === b.dataset.onboard))));
 }
+
+/* ---------- Tiempos reales y rentabilidad ---------- */
+const eurMin = (v) => (v == null ? '—' : `${fmt(v, 2)} €/min`);
+const SOURCE_LABEL = { cronometro: 'cronómetro', tpv: 'TPV', csv: 'importación', api: 'integración', manual: 'horas tecleadas', otro: 'otros' };
+
+function periodControls(current, ref) {
+  return `<div class="seg" role="group" aria-label="Periodo">
+      ${[['month', 'Mes'], ['quarter', 'Trimestre'], ['year', 'Año']].map(([k, l]) => `<button type="button" data-period="${k}" aria-pressed="${current === k}">${l}</button>`).join('')}
+    </div>
+    <input class="input" type="month" id="refMonth" value="${ref}" max="${S.me.today.slice(0, 7)}" aria-label="Mes de referencia" style="width:170px">`;
+}
+function bindPeriod(main) {
+  $$('[data-period]', main).forEach((b) => (b.onclick = () => { S.period = b.dataset.period; render(); }));
+  $('#refMonth', main).onchange = (e) => { if (e.target.value) { S.ref = e.target.value; render(); } };
+}
+const verdictTag = (s) => (s.profitable == null ? '<span class="tag">Sin datos</span>' : s.profitable ? '<span class="tag green">Rentable</span>' : '<span class="tag red">No rentable</span>');
+const devCell = (v) => (v == null ? '—' : `<span class="${v > 10 ? 'down' : v < -5 ? 'up' : ''}">${v > 0 ? '+' : ''}${fmt(v)} %</span>`);
+
+function serviceTable(services) {
+  return `<div class="table-wrap"><table>
+    <thead><tr><th>Servicio</th><th class="r">Veces</th><th class="r">Precio menú</th><th class="r">Precio medio</th><th class="r">Min. menú</th><th class="r">Min. reales</th><th class="r">Desviación</th><th class="r">€/min menú</th><th class="r">€/min real</th><th class="r">€/hora real</th><th>Resultado</th></tr></thead>
+    <tbody>${services.length ? services.map((s) => `<tr>
+      <td><b>${esc(s.name)}</b><br><small class="muted">${esc(s.category || '')}${s.measuredUnits < s.units ? ` · ${fmt(s.measuredUnits)} de ${fmt(s.units)} medidos` : ''}</small></td>
+      <td class="r num">${fmt(s.units)}</td><td class="r num">${eur(s.menuPrice, 2)}</td><td class="r num">${eur(s.avgPrice, 2)}</td>
+      <td class="r num">${s.menuMinutes ? `${fmt(s.menuMinutes)} min` : '—'}</td>
+      <td class="r num"><b>${s.realMinutes == null ? '—' : `${fmt(s.realMinutes)} min`}</b></td>
+      <td class="r num">${devCell(s.deviationPct)}</td>
+      <td class="r num">${s.perMinMenu == null ? '—' : fmt(s.perMinMenu, 2)}</td>
+      <td class="r num"><b>${s.perMinReal == null ? '—' : fmt(s.perMinReal, 2)}</b></td>
+      <td class="r num">${eur(s.perHourReal, 2)}</td>
+      <td>${verdictTag(s)}</td></tr>`).join('') : '<tr><td colspan="11" class="empty">Sin servicios en este periodo.</td></tr>'}</tbody></table></div>`;
+}
+
+function profitabilityPanel(t) {
+  const good = t.services.filter((s) => s.profitable === true).sort((a, b) => (b.perMinReal ?? b.perMinMenu) - (a.perMinReal ?? a.perMinMenu));
+  const bad = t.services.filter((s) => s.profitable === false).sort((a, b) => (a.perMinReal ?? a.perMinMenu) - (b.perMinReal ?? b.perMinMenu));
+  const pm = (s) => s.perMinReal ?? s.perMinMenu;
+  const mins = (s) => s.realMinutes ?? s.menuMinutes;
+  return `<section class="grid g2" aria-label="Rentabilidad de los servicios">
+    <div class="card">
+      <div class="card-head"><h2>No rentables · ${bad.length}</h2><span class="muted">Por debajo de ${fmt(t.threshold, 2)} €/min</span></div>
+      ${bad.length ? bad.map((s) => `<div class="profit-row bad">
+        <div><b>${esc(s.name)}</b><small>${fmt(pm(s), 2)} €/min · ${fmt(mins(s))} min ${s.basedOn === 'real' ? 'reales' : 'de menú (sin medir)'} · ${fmt(s.units)} veces</small></div>
+        <div class="fix">Subir a <b>${eur(s.minPrice)}</b>${s.avgPrice ? `<small>o hacerlo en ${fmt(s.avgPrice / t.threshold)} min</small>` : ''}</div>
+      </div>`).join('') : '<div class="empty">Todos los servicios llegan al mínimo.</div>'}
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Rentables · ${good.length}</h2><span class="muted">${fmt(t.threshold, 2)} €/min o más</span></div>
+      ${good.length ? good.map((s) => `<div class="profit-row good">
+        <div><b>${esc(s.name)}</b><small>${fmt(mins(s))} min ${s.basedOn === 'real' ? 'reales' : 'de menú'} · ${fmt(s.units)} veces</small></div>
+        <div class="fix"><b>${fmt(pm(s), 2)} €/min</b><small>${eur(pm(s) * 60, 0)}/hora</small></div>
+      </div>`).join('') : '<div class="empty">Ningún servicio llega al mínimo todavía.</div>'}
+    </div>
+  </section>`;
+}
+
+VIEWS.tiempos = async (main) => {
+  const d = await api(`/api/service-times?period=${S.period}&ref=${S.ref}`);
+  const sm = d.summary;
+  const sources = Object.entries(sm.sources).map(([k, v]) => `${SOURCE_LABEL[k] || k} ${fmt(v)}`).join(' · ');
+  main.innerHTML = `
+  <header class="page-head">
+    <div><div class="eyebrow">${esc(d.label)} · rentable a partir de ${fmt(d.threshold, 2)} €/min</div><h1>Tiempos y rentabilidad</h1></div>
+    <div class="head-actions">${periodControls(S.period, S.ref)}</div>
+  </header>
+  <section class="grid g4">
+    <div class="kpi"><span class="k">Precio por minuto real</span><span class="v ${sm.perMinReal != null && sm.perMinReal < d.threshold ? 'down' : ''}">${eurMin(sm.perMinReal)}</span><span class="d">Lo cobrado en servicios / minutos reales</span></div>
+    <div class="kpi"><span class="k">Tiempo real frente al menú</span><span class="v">${sm.deviationPct == null ? '—' : `${sm.deviationPct > 0 ? '+' : ''}${fmt(sm.deviationPct)} %`}</span><span class="d">${sm.deviationPct == null ? 'Sin mediciones' : sm.deviationPct > 0 ? 'Se tarda más de lo previsto' : 'Se tarda menos de lo previsto'}</span></div>
+    <div class="kpi"><span class="k">Servicios medidos</span><span class="v">${fmt(sm.measuredShare * 100)} %</span><span class="d">${fmt(sm.measuredUnits)} de ${fmt(sm.units)}${sources ? ` · ${esc(sources)}` : ''}</span></div>
+    <div class="kpi"><span class="k">Servicios no rentables</span><span class="v ${sm.unprofitableCount ? 'down' : 'up'}">${fmt(sm.unprofitableCount)}</span><span class="d">${fmt(sm.unprofitableRevenueShare * 100)} % de la facturación en servicios</span></div>
+  </section>
+  ${sm.measuredShare < 0.5 ? `<div class="notice info">Solo el ${fmt(sm.measuredShare * 100)} % de los servicios tiene tiempo medido. Para medirlo siempre: en «Nuevo cobro» pulsa «Empezar servicio» al empezar y cobra al terminar, o importa del TPV la hora de inicio y fin. Mientras tanto, la rentabilidad usa la duración del menú.</div>` : ''}
+  ${profitabilityPanel(d)}
+  <section class="card">
+    <div class="card-head"><h2>Precio y tiempo de cada servicio</h2><span class="muted">Menú = lo previsto · Real = medido en el salón</span></div>
+    ${serviceTable(d.services)}
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Tiempo real por empleado</h2><span class="muted">Comparado con la duración del menú de los servicios que hace</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Empleado</th><th class="r">Servicios medidos</th><th class="r">Min. reales por servicio</th><th class="r">Frente al menú</th><th class="r">€/min real</th></tr></thead>
+    <tbody>${d.team.length ? d.team.map((e) => `<tr><td><div class="person"><span class="avatar">${esc(initials(e.name))}</span><b>${esc(e.name)}</b></div></td>
+      <td class="r num">${fmt(e.units)}</td><td class="r num">${e.realPerService == null ? '—' : `${fmt(e.realPerService)} min`}</td><td class="r num">${devCell(e.deviationPct)}</td>
+      <td class="r num"><b class="${e.perMinReal != null && e.perMinReal < d.threshold ? 'down' : ''}">${e.perMinReal == null ? '—' : fmt(e.perMinReal, 2)}</b></td></tr>`).join('') : '<tr><td colspan="5" class="empty">Sin servicios medidos.</td></tr>'}</tbody></table></div>
+  </section>`;
+  bindPeriod(main);
+};
+
+/* ---------- Reporte del salón (distribuidor) ---------- */
+async function saveFile(blob, filename) {
+  try {
+    const dl = await window.claude?.use?.('downloads');
+    if (dl) {
+      await dl.save({ filename, data: blob });
+      return true;
+    }
+  } catch (err) {
+    if (err?.code === 'declined') return false;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return true;
+}
+
+VIEWS.reporte = async (main) => {
+  if (!isAdmin()) return go('#/panel');
+  const q = `salon=${S.salonId}&period=${S.period}&ref=${S.ref}`;
+  const r = await api(`/api/admin/report?${q}`);
+  const s = r.summary;
+  const t = r.times;
+  main.innerHTML = `
+  <header class="page-head">
+    <div><div class="eyebrow">Reporte para el distribuidor · ${esc(r.label)}</div><h1>${esc(r.salon.name)}</h1></div>
+    <div class="head-actions no-print">${periodControls(S.period, S.ref)}
+      <button type="button" class="btn primary" id="dlXlsx">Descargar Excel</button>
+      <button type="button" class="btn" id="printReport">Imprimir</button>
+    </div>
+  </header>
+  <section class="card no-print threshold">
+    <form id="thrForm" class="threshold-form">
+      <label class="field" style="flex-direction:row;align-items:center;gap:10px">Rentable a partir de
+        <input class="input" name="thr" inputmode="decimal" value="${fmt(t.threshold, 2)}" style="width:90px;text-align:right" aria-label="Euros por minuto"> €/min
+      </label>
+      <button class="btn small" type="submit">Guardar</button>
+      <span class="muted" style="font-size:13px">Se aplica a este salón en el reporte y en «Tiempos y rentabilidad».</span>
+    </form>
+  </section>
+  <section class="grid g4" aria-label="Resumen">
+    <div class="kpi"><span class="k">Empleados que trabajan</span><span class="v">${fmt(s.employees)}</span><span class="d">${fmt(s.hours)} h trabajadas${s.hoursEstimated ? ' (estimadas)' : ''}</span></div>
+    <div class="kpi"><span class="k">Precio hora del salón</span><span class="v">${s.hourlyRate == null ? '—' : `${fmt(s.hourlyRate, 2)} €/h`}</span><span class="d">Facturación ${eur(s.revenue)}</span></div>
+    <div class="kpi"><span class="k">Ticket medio general</span><span class="v">${eur(s.avgTicket, 2)}</span><span class="d">${fmt(s.visits)} visitas · ${fmt(s.clients)} clientes</span></div>
+    <div class="kpi"><span class="k">Precio por minuto real</span><span class="v ${t.summary.perMinReal != null && t.summary.perMinReal < t.threshold ? 'down' : 'up'}">${eurMin(t.summary.perMinReal)}</span><span class="d">Mínimo ${fmt(t.threshold, 2)} €/min</span></div>
+  </section>
+  <section class="grid g2">
+    <div class="card"><div class="block-title">Mujer</div>
+      <div class="kv"><span>Servicios de mujer</span><span>${fmt(s.servicesWomen)}</span></div>
+      <div class="kv"><span>Ticket medio de mujer</span><span>${eur(r.gender.women.avgTicket, 2)}</span></div>
+      <div class="kv"><span>Tickets</span><span>${fmt(r.gender.women.tickets)}</span></div>
+      <div class="kv"><span>Facturación</span><span>${eur(r.gender.women.revenue)}</span></div>
+    </div>
+    <div class="card"><div class="block-title">Hombre</div>
+      <div class="kv"><span>Servicios de hombre</span><span>${fmt(s.servicesMen)}</span></div>
+      <div class="kv"><span>Ticket medio de hombre</span><span>${eur(r.gender.men.avgTicket, 2)}</span></div>
+      <div class="kv"><span>Tickets</span><span>${fmt(r.gender.men.tickets)}</span></div>
+      <div class="kv"><span>Facturación</span><span>${eur(r.gender.men.revenue)}</span></div>
+    </div>
+  </section>
+  <section class="card">
+    <h2>Equipo</h2>
+    <div class="table-wrap"><table><thead><tr><th>Empleado</th><th class="r">Horas</th><th class="r">Servicios</th><th class="r">Visitas</th><th class="r">Ticket medio</th><th class="r">Facturación</th><th class="r">€/hora</th><th class="r">Min. reales/serv.</th><th class="r">Frente al menú</th></tr></thead>
+    <tbody>${r.team.map((e) => `<tr><td><b>${esc(e.name)}</b><br><small class="muted">${esc(e.role || '')}</small></td>
+      <td class="r num">${fmt(e.hours)}${e.hoursEstimated ? '<small class="muted"> est.</small>' : ''}</td><td class="r num">${fmt(e.services)}</td><td class="r num">${fmt(e.visits)}</td>
+      <td class="r num"><b>${eur(e.avgTicket, 2)}</b></td><td class="r num">${eur(e.revenue)}</td><td class="r num">${eur(e.hourlyRate, 2)}</td>
+      <td class="r num">${e.realPerService == null ? '—' : `${fmt(e.realPerService)} min`}</td><td class="r num">${devCell(e.timeDeviationPct)}</td></tr>`).join('')}</tbody></table></div>
+  </section>
+  ${profitabilityPanel(t)}
+  <section class="card">
+    <div class="card-head"><h2>Precios y tiempos de los servicios trabajados</h2><span class="muted">${fmt(t.summary.measuredShare * 100)} % con tiempo medido</span></div>
+    ${serviceTable(t.services)}
+  </section>
+  <p class="muted print-only" style="font-size:12px">Generado por Salon OS el ${fdate(r.generatedAt.slice(0, 10))}.</p>`;
+  bindPeriod(main);
+  $('#printReport').onclick = () => window.print();
+  $('#dlXlsx').onclick = async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/admin/report.xlsx?${q}`, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'No se pudo generar el reporte');
+      const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || 'reporte.xlsx';
+      if (await saveFile(await res.blob(), name)) toast('Reporte descargado');
+    } catch (err) { toast(err.message, true); }
+    finally { btn.disabled = false; }
+  };
+  $('#thrForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const v = parseNum(e.target.thr.value);
+    if (!(v > 0)) return toast('Escribe un precio por minuto válido, por ejemplo 0,85', true);
+    try { await api(`/api/admin/salons/${S.salonId}`, { method: 'PUT', body: { min_price_minute: v } }); toast('Mínimo guardado'); render(); }
+    catch (err) { toast(err.message, true); }
+  };
+};
 
 render();

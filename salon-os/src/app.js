@@ -11,7 +11,7 @@ import { listClients, clientDetail } from './clients.js';
 import { importTickets, importHours, normGender, normTime } from './importer.js';
 import { csvToTickets } from './csv.js';
 import { networkOverview, purchaseSignal } from './network.js';
-import { today, currentMonth, isMonth, isDate, addMonths, monthStart } from './dates.js';
+import { today, currentMonth, isMonth, isDate, addMonths, monthStart, periodRange } from './dates.js';
 import {
   listConversations, conversationDetail, getOrCreateConversation, sendMessage, recordInbound, reminderSuggestions,
   ensureTemplates, channelsFor, channelStatus, parseWhatsAppWebhook, phoneKey
@@ -19,6 +19,7 @@ import {
 import { getInsights, refreshClientInsights } from './insights.js';
 import { aiAvailable, aiClientSummary } from './ai.js';
 import { onboardingSteps, loadStarterCatalog } from './onboarding.js';
+import { serviceTimes, reportData, reportXlsx } from './servicetimes.js';
 
 const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.csv': 'text/csv; charset=utf-8' };
@@ -224,8 +225,14 @@ export function createApp(db) {
           .run(salon.id, str(b.new_client.name, 120), str(b.new_client.phone, 40), str(b.new_client.email, 120), normGender(b.new_client.gender), date).lastInsertRowid);
       }
       const total = round2(lines.reduce((s, l) => s + l.total, 0));
-      const t = db.prepare(`INSERT INTO tickets (salon_id, client_id, employee_id, date, time_start, time_end, method, total, source)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual')`).run(salon.id, clientId, employee?.id ?? null, date, normTime(b.time_start), normTime(b.time_end), method, total);
+      // Con cronómetro, la hora de inicio es la del servicio en curso.
+      const visit = b.open_visit_id ? owned('open_visits', Number(b.open_visit_id), salon.id) : null;
+      const ts = normTime(b.time_start);
+      const te = normTime(b.time_end);
+      const timeSource = ts && te ? (visit ? 'cronometro' : 'manual') : '';
+      const t = db.prepare(`INSERT INTO tickets (salon_id, client_id, employee_id, date, time_start, time_end, method, total, source, time_source)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?)`).run(salon.id, clientId, employee?.id ?? null, date, ts, te, method, total, timeSource);
+      if (visit) db.prepare('DELETE FROM open_visits WHERE id = ?').run(visit.id);
       const tid = Number(t.lastInsertRowid);
       const ins = db.prepare('INSERT INTO ticket_lines (ticket_id, kind, item_id, name, qty, unit_price, total, employee_id, duration_min) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
       for (const l of lines) ins.run(tid, l.kind, l.item.id, l.item.name, l.qty, l.price, l.total, l.emp, l.duration);
@@ -408,8 +415,11 @@ export function createApp(db) {
   on('PUT', '/api/admin/salons/:id', 'admin', ({ params, body }) => {
     const s = salonById(Number(params.id));
     if (!s) throw notFound();
-    db.prepare('UPDATE salons SET plan = ?, monthly_fee = ?, active = ? WHERE id = ?')
-      .run(str(body.plan, 40) || s.plan, money(body.monthly_fee ?? s.monthly_fee, 'Cuota'), body.active === false ? 0 : 1, s.id);
+    const minPm = body.min_price_minute != null && body.min_price_minute !== '' ? Number(body.min_price_minute) : s.min_price_minute;
+    if (!(minPm > 0 && minPm < 20)) throw bad('Precio mínimo por minuto no válido');
+    const active = body.active === undefined ? s.active : body.active === false ? 0 : 1;
+    db.prepare('UPDATE salons SET plan = ?, monthly_fee = ?, active = ?, min_price_minute = ? WHERE id = ?')
+      .run(str(body.plan, 40) || s.plan, money(body.monthly_fee ?? s.monthly_fee, 'Cuota'), active, minPm, s.id);
     return { ok: true };
   });
 
@@ -437,6 +447,69 @@ export function createApp(db) {
     return { saved, errors };
   });
 
+
+  /* --- Tiempos reales de servicio y rentabilidad --- */
+  const periodOf = (q) => ({
+    period: ['month', 'quarter', 'year'].includes(q.get('period')) ? q.get('period') : 'month',
+    ref: isMonth(q.get('ref')) ? q.get('ref') : currentMonth()
+  });
+  on('GET', '/api/service-times', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    const { period, ref } = periodOf(ctx.query);
+    const range = periodRange(period, ref);
+    return { period, ref, label: range.label, ...serviceTimes(db, salon, range.from, range.to) };
+  });
+  /* Reporte del salón para el distribuidor (pantalla y Excel). */
+  on('GET', '/api/admin/report', 'admin', (ctx) => {
+    const salon = salonFor(ctx);
+    const { period, ref } = periodOf(ctx.query);
+    return reportData(db, salon, period, ref);
+  });
+  on('GET', '/api/admin/report.xlsx', 'admin', (ctx) => {
+    const salon = salonFor(ctx);
+    const { period, ref } = periodOf(ctx.query);
+    const data = reportData(db, salon, period, ref);
+    const slug = salon.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+    return {
+      binary: reportXlsx(data),
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      filename: `reporte-${slug}-${ref}${period === 'month' ? '' : `-${period === 'quarter' ? 'trimestre' : 'anual'}`}.xlsx`
+    };
+  });
+
+  /* --- Servicios en curso (cronómetro) --- */
+  on('GET', '/api/visits/open', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    return {
+      visits: db.prepare(`SELECT v.*, e.name AS employee_name FROM open_visits v LEFT JOIN employees e ON e.id = v.employee_id
+          WHERE v.salon_id = ? ORDER BY v.started_at`).all(salon.id).map((v) => ({ ...v, lines: JSON.parse(v.lines || '[]') })),
+      now: new Date().toISOString()
+    };
+  });
+  on('POST', '/api/visits/open', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    const b = ctx.body;
+    const employee = b.employee_id ? owned('employees', Number(b.employee_id), salon.id) : null;
+    let clientId = null;
+    let clientName = str(b.client_name, 120);
+    if (b.client_id) { const c = owned('clients', Number(b.client_id), salon.id); clientId = c.id; clientName = c.name; }
+    const lines = (Array.isArray(b.lines) ? b.lines : []).slice(0, 30).map((l) => {
+      const kind = l.kind === 'product' ? 'product' : 'service';
+      const item = owned(kind === 'product' ? 'products' : 'services', Number(l.item_id), salon.id);
+      return { kind, item_id: item.id, name: item.name, qty: Math.max(1, Math.min(99, Math.round(Number(l.qty) || 1))), price: l.price != null && l.price !== '' ? money(l.price, item.name) : item.price, duration: item.duration_min || 0 };
+    });
+    if (!lines.some((l) => l.kind === 'service')) throw bad('Añade al menos un servicio para empezar a medir');
+    const started = new Date().toISOString();
+    const r = db.prepare('INSERT INTO open_visits (salon_id, client_id, client_name, employee_id, lines, started_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(salon.id, clientId, clientName, employee?.id ?? null, JSON.stringify(lines), started);
+    return { id: Number(r.lastInsertRowid), started_at: started };
+  });
+  on('DELETE', '/api/visits/open/:id', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    owned('open_visits', Number(ctx.params.id), salon.id);
+    db.prepare('DELETE FROM open_visits WHERE id = ?').run(Number(ctx.params.id));
+    return { ok: true };
+  });
 
   /* --- Comunicación con clientes --- */
   const CHANNELS = ['whatsapp', 'email', 'sms'];
@@ -742,6 +815,14 @@ export function createApp(db) {
         if (!ctx.salon) throw new HttpError(401, 'Clave de API no válida');
       }
       const out = await r.handler(ctx);
+      if (out && out.binary) {
+        res.writeHead(200, {
+          'Content-Type': out.contentType || 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${out.filename || 'archivo'}"`,
+          'Cache-Control': 'no-store'
+        });
+        return res.end(out.binary);
+      }
       if (out && out.raw !== undefined) {
         res.writeHead(out.status || 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
         return res.end(String(out.raw));

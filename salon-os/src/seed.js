@@ -25,23 +25,23 @@ const SURNAMES = ['Gil', 'Castro', 'Santos', 'Ruiz', 'Fernández', 'García', 'L
 
 const SALON_SERVICES = [
   // nombre, categoría, género, precio, minutos, peso mujer, peso hombre
-  ['Corte y peinado mujer', 'Corte', 'M', 38, 45, 30, 0],
-  ['Corte hombre', 'Corte', 'H', 18, 25, 0, 70],
-  ['Peinado', 'Peinado', 'M', 22, 30, 18, 0],
-  ['Color raíz', 'Color', 'M', 45, 75, 22, 0],
-  ['Color completo', 'Color', 'M', 58, 90, 7, 0],
-  ['Mechas / balayage', 'Color', 'M', 95, 150, 9, 0],
-  ['Alisado de keratina', 'Tratamiento', 'M', 140, 150, 2, 0],
-  ['Recogido', 'Peinado', 'M', 45, 60, 3, 0],
-  ['Arreglo de barba', 'Barba', 'H', 12, 15, 0, 22],
-  ['Color canas hombre', 'Color', 'H', 22, 35, 0, 8]
+  ['Corte y peinado mujer', 'Corte', 'M', 42, 45, 30, 0],
+  ['Corte hombre', 'Corte', 'H', 18, 20, 0, 70],
+  ['Peinado', 'Peinado', 'M', 25, 25, 18, 0],
+  ['Color raíz', 'Color', 'M', 55, 60, 22, 0],
+  ['Color completo', 'Color', 'M', 68, 75, 7, 0],
+  ['Mechas / balayage', 'Color', 'M', 140, 150, 9, 0],
+  ['Alisado de keratina', 'Tratamiento', 'M', 160, 150, 2, 0],
+  ['Recogido', 'Peinado', 'M', 50, 45, 3, 0],
+  ['Arreglo de barba', 'Barba', 'H', 12, 12, 0, 22],
+  ['Color canas hombre', 'Color', 'H', 25, 30, 0, 8]
 ];
 const SALON_ADDONS = [['Tratamiento hidratación', 'Tratamiento', 'U', 25, 20], ['Matiz / tonalizante', 'Color', 'M', 20, 20], ['Tratamiento reparador', 'Tratamiento', 'U', 35, 30]];
 const BARBER_SERVICES = [
-  ['Corte hombre', 'Corte', 'H', 18, 30, 0, 45],
-  ['Corte + barba', 'Corte', 'H', 26, 40, 0, 30],
-  ['Arreglo de barba', 'Barba', 'H', 12, 20, 0, 12],
-  ['Afeitado clásico', 'Barba', 'H', 18, 30, 0, 6],
+  ['Corte hombre', 'Corte', 'H', 20, 25, 0, 45],
+  ['Corte + barba', 'Corte', 'H', 32, 35, 0, 30],
+  ['Arreglo de barba', 'Barba', 'H', 12, 15, 0, 12],
+  ['Afeitado clásico', 'Barba', 'H', 25, 25, 0, 6],
   ['Corte niño', 'Corte', 'H', 14, 20, 0, 7],
   ['Corte mujer', 'Corte', 'M', 22, 30, 1, 0]
 ];
@@ -59,6 +59,14 @@ const SALONS = [
 ];
 
 /* Más visitas en diciembre y primavera, menos en agosto y enero. */
+/* Cuánto se tarda de verdad frente a lo que dice el menú (demo). */
+const REAL_FACTOR = {
+  'Corte y peinado mujer': 1.08, 'Corte hombre': 1.15, 'Peinado': 0.95, 'Color raíz': 1.22, 'Color completo': 1.12,
+  'Mechas / balayage': 1.18, 'Alisado de keratina': 1.15, 'Recogido': 1.25, 'Arreglo de barba': 1.0, 'Color canas hombre': 1.05,
+  'Tratamiento hidratación': 1.3, 'Matiz / tonalizante': 1.1, 'Tratamiento reparador': 1.2, 'Corte + barba': 1.1,
+  'Afeitado clásico': 1.0, 'Corte niño': 0.9, 'Corte mujer': 1.1, 'Tratamiento capilar': 1.15
+};
+
 const SEASON = [0.88, 0.92, 1.0, 1.02, 1.05, 1.1, 1.0, 0.82, 1.02, 1.0, 1.02, 1.28];
 
 export function seedDemo(db, { password = 'demo1234' } = {}) {
@@ -85,7 +93,8 @@ export function seedDemo(db, { password = 'demo1234' } = {}) {
           VALUES (?, ?, ?, ?, 150, 8, 150, ?, ?)`).run(cfg.name, cfg.city, cfg.plan, cfg.fee, newApiKey(), si === 1 ? addDays(t, -60) : created).lastInsertRowid);
       db.prepare("INSERT INTO users (email, name, password_hash, role, salon_id) VALUES (?, ?, ?, 'owner', ?)").run(cfg.email, cfg.owner, pw, sid);
 
-      const emps = cfg.staff.map(([name, role, retail]) => ({
+      const emps = cfg.staff.map(([name, role, retail], ei) => ({
+        speed: [1.08, 0.94, 1.0, 1.12, 0.97][ei % 5],
         id: Number(db.prepare('INSERT INTO employees (salon_id, name, role) VALUES (?, ?, ?)').run(sid, name, role).lastInsertRowid), retail, barber: /barber/i.test(role)
       }));
 
@@ -105,8 +114,8 @@ export function seedDemo(db, { password = 'demo1234' } = {}) {
       db.prepare("INSERT INTO products (salon_id, name, kind, price, cost) VALUES (?, 'Oxidante 1 L', 'tecnico', 0, 6)").run(sid);
 
       const insCli = db.prepare('INSERT INTO clients (salon_id, name, phone, email, gender, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
-      const insTk = db.prepare(`INSERT INTO tickets (salon_id, client_id, employee_id, date, time_start, time_end, method, total, source, external_ref)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'tpv', ?)`);
+      const insTk = db.prepare(`INSERT INTO tickets (salon_id, client_id, employee_id, date, time_start, time_end, method, total, source, external_ref, time_source)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'tpv', ?, 'tpv')`);
       const insLine = db.prepare('INSERT INTO ticket_lines (ticket_id, kind, item_id, name, qty, unit_price, total, employee_id, duration_min) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
       // Clientes: una parte ya existía antes del periodo, el resto llega poco a poco.
@@ -153,9 +162,9 @@ export function seedDemo(db, { password = 'demo1234' } = {}) {
             products.push(pick(retail));
             if (r() < 0.2) products.push(pick(retail));
           }
-          const minutes = lines.reduce((s, l) => s + l.dur, 0);
           const startMin = 9 * 60 + Math.floor(r() * 20) * 30;
-          const endMin = startMin + minutes + Math.floor(r() * 14) - 3;
+          const realMinutes = lines.reduce((s, l) => s + l.dur * (REAL_FACTOR[l.name] || 1.05), 0) * emp.speed;
+          const endMin = startMin + Math.round(realMinutes * (0.93 + r() * 0.14));
           const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
           const total = lines.reduce((s, l) => s + l.price, 0) + products.reduce((s, p) => s + p.price, 0);
           const x = r();

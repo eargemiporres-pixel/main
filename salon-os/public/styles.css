@@ -326,10 +326,40 @@ code.key { background: var(--line-2); padding: 3px 8px; border-radius: 6px; font
   .bubble { max-width: 90%; }
 }
 
+
+/* ---------- Cronómetro, tiempos y reporte ---------- */
+.pos-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px; }
+.pos-actions .btn { min-height: 52px; font-size: 16px; }
+.pos-actions .btn.hidden + .btn { grid-column: 1 / -1; }
+.running { border-color: var(--ochre); }
+.running-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
+.running-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--soft); }
+.running-item .clock { font-family: var(--display); font-size: 22px; min-width: 70px; color: var(--plum); font-variant-numeric: tabular-nums; }
+.running-item .txt { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
+.running-item .txt small { color: var(--muted); font-size: 12px; }
+.profit-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; }
+.profit-row + .profit-row { margin-top: 4px; }
+.profit-row.bad { background: var(--red-soft); }
+.profit-row.good { background: var(--green-soft); }
+.profit-row div { display: flex; flex-direction: column; min-width: 0; }
+.profit-row small { color: var(--ink-2); font-size: 12px; }
+.profit-row .fix { text-align: right; white-space: nowrap; }
+.threshold-form { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.print-only { display: none; }
+@media print {
+  body { background: #fff; }
+  .side, .no-print, .toast { display: none !important; }
+  .main { padding: 0; max-width: none; }
+  .card, .kpi { break-inside: avoid; border-color: #ccc; }
+  .print-only { display: block; }
+  .table-wrap { overflow: visible; }
+}
+
 /* ---------- Móvil ---------- */
 @media (max-width: 1180px) {
   .g4, .g5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .g-2-1, .g-1-2, .g-cash, .pos { grid-template-columns: minmax(0, 1fr); }
+  .running-list { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 900px) {
   .shell { flex-direction: column; }

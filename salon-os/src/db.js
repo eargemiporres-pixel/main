@@ -213,16 +213,44 @@ CREATE TABLE IF NOT EXISTS leads (
   notes TEXT DEFAULT '',
   created_at TEXT DEFAULT (datetime('now'))
 );
+-- Servicios en curso: se empiezan con el cronómetro y se cierran al cobrar.
+CREATE TABLE IF NOT EXISTS open_visits (
+  id INTEGER PRIMARY KEY,
+  salon_id INTEGER NOT NULL REFERENCES salons(id),
+  client_id INTEGER REFERENCES clients(id),
+  client_name TEXT DEFAULT '',
+  employee_id INTEGER REFERENCES employees(id),
+  lines TEXT NOT NULL DEFAULT '[]',
+  started_at TEXT NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_conv_salon ON conversations (salon_id, last_message_at);
 CREATE INDEX IF NOT EXISTS idx_conv_client ON conversations (client_id);
 CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages (conversation_id, created_at);
 `;
+
+/* Columnas añadidas después de la primera versión: se crean en bases de
+   datos existentes sin perder datos. */
+const MIGRATIONS = [
+  // De dónde salen la hora de inicio y fin: 'cronometro' (medido en el salón),
+  // 'tpv'/'csv'/'api' (vienen del sistema de caja) o 'manual' (tecleadas).
+  ['tickets', 'time_source', "TEXT DEFAULT ''"],
+  // Precio mínimo por minuto para considerar un servicio rentable.
+  ['salons', 'min_price_minute', 'REAL DEFAULT 0.85']
+];
+
+function migrate(db) {
+  for (const [table, column, def] of MIGRATIONS) {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
+  }
+}
 
 export function openDb(file) {
   if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
 }
 
