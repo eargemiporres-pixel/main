@@ -3,6 +3,7 @@
 import { readFile } from 'node:fs/promises';
 import { join, normalize, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { tx } from './db.js';
 import { hashPassword, verifyPassword, createSession, sessionUser, destroySession, parseCookies, newApiKey, loginAllowed, loginFailed } from './auth.js';
 import { dashboard } from './metrics.js';
@@ -11,6 +12,13 @@ import { importTickets, importHours, normGender, normTime } from './importer.js'
 import { csvToTickets } from './csv.js';
 import { networkOverview, purchaseSignal } from './network.js';
 import { today, currentMonth, isMonth, isDate, addMonths, monthStart } from './dates.js';
+import {
+  listConversations, conversationDetail, getOrCreateConversation, sendMessage, recordInbound, reminderSuggestions,
+  ensureTemplates, channelsFor, channelStatus, parseWhatsAppWebhook, phoneKey
+} from './messaging.js';
+import { getInsights, refreshClientInsights } from './insights.js';
+import { aiAvailable, aiClientSummary } from './ai.js';
+import { onboardingSteps, loadStarterCatalog } from './onboarding.js';
 
 const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.csv': 'text/csv; charset=utf-8' };
@@ -41,8 +49,9 @@ function readBody(req) {
       chunks.push(c);
     });
     req.on('end', () => {
-      if (!chunks.length) return resolve({});
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+      if (!chunks.length) return resolve({ parsed: {}, raw: '' });
+      const raw = Buffer.concat(chunks).toString('utf8');
+      try { resolve({ parsed: JSON.parse(raw), raw }); }
       catch { reject(bad('JSON no válido')); }
     });
     req.on('error', reject);
@@ -131,7 +140,8 @@ export function createApp(db) {
     const salon = salonFor(ctx);
     const d = clientDetail(db, salon.id, Number(ctx.params.id));
     if (!d) throw notFound('Cliente no encontrado');
-    return d;
+    const conversations = db.prepare('SELECT id, channel, status, last_message_at, last_preview, unread FROM conversations WHERE client_id = ? ORDER BY last_message_at DESC').all(d.client.id);
+    return { ...d, insights: getInsights(db, d.client.id), conversations };
   });
   const clientFields = (b) => {
     const name = str(b.name, 120);
@@ -391,6 +401,7 @@ export function createApp(db) {
       const sid = Number(s.lastInsertRowid);
       db.prepare("INSERT INTO users (email, name, password_hash, role, salon_id) VALUES (?, ?, ?, 'owner', ?)")
         .run(email, str(body.owner_name, 120), hashPassword(body.owner_password), sid);
+      if (body.lead_id) db.prepare("UPDATE leads SET status = 'en prueba' WHERE id = ?").run(Number(body.lead_id));
       return { id: sid };
     });
   });
@@ -426,13 +437,246 @@ export function createApp(db) {
     return { saved, errors };
   });
 
+
+  /* --- Comunicación con clientes --- */
+  const CHANNELS = ['whatsapp', 'email', 'sms'];
+  const authorName = (user) => user.name || user.email;
+
+  on('GET', '/api/messages/summary', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    return db.prepare("SELECT COALESCE(SUM(unread), 0) AS unread, COALESCE(SUM(status = 'abierta'), 0) AS open FROM conversations WHERE salon_id = ?").get(salon.id);
+  });
+  on('GET', '/api/conversations', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    return { ...listConversations(db, salon.id, { filter: ctx.query.get('filter') || 'abiertas', q: ctx.query.get('q') || '' }), channels: channelStatus(channelsFor(db, salon.id)) };
+  });
+  on('GET', '/api/conversations/:id', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    const d = conversationDetail(db, salon.id, Number(ctx.params.id));
+    if (!d) throw notFound('Conversación no encontrada');
+    ensureTemplates(db, salon.id);
+    return {
+      ...d,
+      insights: d.conversation.client_id ? getInsights(db, d.conversation.client_id) : null,
+      templates: db.prepare('SELECT id, kind, name, body FROM message_templates WHERE salon_id = ? ORDER BY id').all(salon.id),
+      employees: db.prepare('SELECT id, name FROM employees WHERE salon_id = ? AND active = 1 ORDER BY name').all(salon.id),
+      channels: channelStatus(channelsFor(db, salon.id)),
+      salonName: salon.name
+    };
+  });
+  /* Mensaje nuevo a un cliente (o a un teléfono/email). Crea la conversación si no existe. */
+  on('POST', '/api/conversations', 'user', async (ctx) => {
+    const salon = salonFor(ctx);
+    const b = ctx.body;
+    const channel = CHANNELS.includes(b.channel) ? b.channel : 'whatsapp';
+    let contact = str(b.contact, 120);
+    let name = '';
+    let clientId = null;
+    if (b.client_id) {
+      const c = owned('clients', Number(b.client_id), salon.id);
+      clientId = c.id;
+      name = c.name;
+      contact = channel === 'email' ? c.email : c.phone;
+      if (!contact) throw bad(channel === 'email' ? 'Este cliente no tiene email' : 'Este cliente no tiene teléfono');
+    }
+    if (!contact) throw bad('Indica el teléfono o el email');
+    if (channel !== 'email' && phoneKey(contact).length < 9) throw bad('Teléfono no válido');
+    const conv = getOrCreateConversation(db, salon.id, { channel, contact, name, clientId, createClient: false });
+    const sent = await sendMessage(db, salon, conv, b.text, { author: authorName(ctx.user), template: str(b.template, 40) || null });
+    return { id: conv.id, ...sent };
+  });
+  on('POST', '/api/conversations/:id/messages', 'user', async (ctx) => {
+    const salon = salonFor(ctx);
+    const conv = owned('conversations', Number(ctx.params.id), salon.id);
+    return sendMessage(db, salon, conv, ctx.body.text, { author: authorName(ctx.user), template: str(ctx.body.template, 40) || null });
+  });
+  on('PUT', '/api/conversations/:id', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    const conv = owned('conversations', Number(ctx.params.id), salon.id);
+    const status = ['abierta', 'pendiente', 'cerrada'].includes(ctx.body.status) ? ctx.body.status : conv.status;
+    let assigned = conv.assigned_to;
+    if (ctx.body.assigned_to !== undefined) assigned = ctx.body.assigned_to ? owned('employees', Number(ctx.body.assigned_to), salon.id).id : null;
+    let clientId = conv.client_id;
+    if (ctx.body.client_id) clientId = owned('clients', Number(ctx.body.client_id), salon.id).id;
+    db.prepare('UPDATE conversations SET status = ?, assigned_to = ?, client_id = ? WHERE id = ?').run(status, assigned, clientId, conv.id);
+    if (clientId && clientId !== conv.client_id) refreshClientInsights(db, salon.id, clientId);
+    return { ok: true };
+  });
+
+  on('GET', '/api/templates', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    ensureTemplates(db, salon.id);
+    return { templates: db.prepare('SELECT * FROM message_templates WHERE salon_id = ? ORDER BY id').all(salon.id) };
+  });
+  const templateFields = (b) => {
+    const name = str(b.name, 80);
+    const body = str(b.body, 1000);
+    if (!name || !body) throw bad('La plantilla necesita nombre y texto');
+    return [str(b.kind, 40) || 'otro', name, body];
+  };
+  on('POST', '/api/templates', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    const r = db.prepare('INSERT INTO message_templates (salon_id, kind, name, body) VALUES (?, ?, ?, ?)').run(salon.id, ...templateFields(ctx.body));
+    return { id: Number(r.lastInsertRowid) };
+  });
+  on('PUT', '/api/templates/:id', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    owned('message_templates', Number(ctx.params.id), salon.id);
+    db.prepare('UPDATE message_templates SET kind = ?, name = ?, body = ? WHERE id = ?').run(...templateFields(ctx.body), Number(ctx.params.id));
+    return { ok: true };
+  });
+  on('DELETE', '/api/templates/:id', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    owned('message_templates', Number(ctx.params.id), salon.id);
+    db.prepare('DELETE FROM message_templates WHERE id = ?').run(Number(ctx.params.id));
+    return { ok: true };
+  });
+
+  on('GET', '/api/reminders', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    return { groups: reminderSuggestions(db, salon), channels: channelStatus(channelsFor(db, salon.id)) };
+  });
+  /* Envía recordatorios. Con WhatsApp conectado salen solos; en modo manual
+     se devuelven los enlaces para enviarlos uno a uno desde el móvil. */
+  on('POST', '/api/reminders/send', 'user', async (ctx) => {
+    const salon = salonFor(ctx);
+    const items = Array.isArray(ctx.body.items) ? ctx.body.items.slice(0, 200) : [];
+    if (!items.length) throw bad('Elige al menos un cliente');
+    const results = [];
+    for (const it of items) {
+      const c = owned('clients', Number(it.client_id), salon.id);
+      if (phoneKey(c.phone).length < 9) { results.push({ client_id: c.id, name: c.name, status: 'error', error: 'Sin teléfono' }); continue; }
+      const conv = getOrCreateConversation(db, salon.id, { channel: 'whatsapp', contact: c.phone, name: c.name, clientId: c.id, createClient: false });
+      const r = await sendMessage(db, salon, conv, it.text, { author: authorName(ctx.user), template: str(it.kind, 40) || 'recordatorio' });
+      results.push({ client_id: c.id, name: c.name, conversation_id: conv.id, ...r });
+    }
+    return { results };
+  });
+
+  on('POST', '/api/clients/:id/insights/ai', 'user', async (ctx) => {
+    const salon = salonFor(ctx);
+    const c = owned('clients', Number(ctx.params.id), salon.id);
+    const messages = db.prepare(`SELECT m.direction, m.body, m.created_at FROM messages m JOIN conversations cv ON cv.id = m.conversation_id
+        WHERE cv.salon_id = ? AND cv.client_id = ? ORDER BY m.created_at, m.id`).all(salon.id, c.id);
+    if (!messages.length) throw bad('Este cliente aún no tiene conversaciones');
+    const history = db.prepare(`SELECT tk.date, group_concat(l.name, ' + ') AS services FROM tickets tk JOIN ticket_lines l ON l.ticket_id = tk.id
+        WHERE tk.client_id = ? GROUP BY tk.id ORDER BY tk.date DESC LIMIT 10`).all(c.id);
+    const r = await aiClientSummary({ salonName: salon.name, client: c, history, messages });
+    if (r.error) throw bad(r.error);
+    const data = refreshClientInsights(db, salon.id, c.id);
+    data.ai = { ...r.data, at: new Date().toISOString().slice(0, 16).replace('T', ' ') };
+    db.prepare("UPDATE client_insights SET data = ?, source = 'ia' WHERE client_id = ?").run(JSON.stringify(data), c.id);
+    return data;
+  });
+
+  on('GET', '/api/channels', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    const ch = channelsFor(db, salon.id);
+    return {
+      wa_phone_number_id: ch.wa_phone_number_id, wa_number: ch.wa_number, wa_token_set: Boolean(ch.wa_token),
+      email_from: ch.email_from, email_key_set: Boolean(ch.email_api_key),
+      status: channelStatus(ch), webhookReady: Boolean(process.env.WA_VERIFY_TOKEN)
+    };
+  });
+  on('PUT', '/api/channels', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    const b = ctx.body;
+    const cur = channelsFor(db, salon.id);
+    const id = str(b.wa_phone_number_id, 40);
+    if (id && db.prepare('SELECT 1 FROM salon_channels WHERE wa_phone_number_id = ? AND salon_id <> ?').get(id, salon.id)) throw bad('Ese número de WhatsApp ya está conectado a otro salón');
+    const row = [
+      id, b.wa_token ? str(b.wa_token, 600) : cur.wa_token, str(b.wa_number, 30),
+      b.email_api_key ? str(b.email_api_key, 200) : cur.email_api_key, str(b.email_from, 120)
+    ];
+    if (b.clear_wa) { row[0] = ''; row[1] = ''; }
+    if (b.clear_email) { row[3] = ''; }
+    db.prepare(`INSERT INTO salon_channels (salon_id, wa_phone_number_id, wa_token, wa_number, email_api_key, email_from) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT (salon_id) DO UPDATE SET wa_phone_number_id = excluded.wa_phone_number_id, wa_token = excluded.wa_token, wa_number = excluded.wa_number,
+        email_api_key = excluded.email_api_key, email_from = excluded.email_from`).run(salon.id, ...row);
+    return { ok: true };
+  });
+
+  /* Webhook de WhatsApp Business (Cloud API de Meta). Una sola URL para toda la
+     red: cada mensaje llega con el phone_number_id del salón que lo recibe. */
+  on('GET', '/api/webhooks/whatsapp', 'none', ({ query }) => {
+    const expected = process.env.WA_VERIFY_TOKEN;
+    if (expected && query.get('hub.mode') === 'subscribe' && query.get('hub.verify_token') === expected) return { raw: query.get('hub.challenge') || '' };
+    return { raw: 'Token de verificación no válido', status: 403 };
+  });
+  on('POST', '/api/webhooks/whatsapp', 'none', ({ body, rawBody, headers }) => {
+    const secret = process.env.WA_APP_SECRET;
+    if (secret) {
+      const sig = String(headers['x-hub-signature-256'] || '');
+      const expected = `sha256=${createHmac('sha256', secret).update(rawBody).digest('hex')}`;
+      const ok = sig.length === expected.length && timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+      if (!ok) throw new HttpError(401, 'Firma no válida');
+    }
+    let received = 0;
+    for (const m of parseWhatsAppWebhook(body)) {
+      const ch = db.prepare('SELECT salon_id FROM salon_channels WHERE wa_phone_number_id = ?').get(m.phoneNumberId);
+      if (!ch) continue;
+      if (m.status) {
+        const st = { sent: 'enviado', delivered: 'entregado', read: 'leído', failed: 'error' }[m.status];
+        if (st) db.prepare("UPDATE messages SET status = ? WHERE salon_id = ? AND external_id = ? AND direction = 'out'").run(st, ch.salon_id, m.externalId);
+        continue;
+      }
+      recordInbound(db, ch.salon_id, { channel: 'whatsapp', from: m.from, name: m.name, body: m.body, externalId: m.externalId, at: m.at });
+      received++;
+    }
+    return { ok: true, received };
+  });
+  /* Mensajes entrantes de otros canales (email reenviado, Instagram vía Make/Zapier…). */
+  on('POST', '/api/ingest/messages', 'apikey', ({ salon, body }) => {
+    if (!Array.isArray(body.messages)) throw bad('Envía { "messages": [...] }');
+    let saved = 0;
+    const errors = [];
+    body.messages.slice(0, 1000).forEach((m, i) => {
+      const channel = ['whatsapp', 'email', 'sms', 'instagram', 'web'].includes(m.channel) ? m.channel : 'whatsapp';
+      if (!m.from || !m.body) return errors.push({ index: i, error: 'faltan from o body' });
+      const r = recordInbound(db, salon.id, { channel, from: String(m.from), name: str(m.name, 120), body: str(m.body, 4000), externalId: m.id ? `${channel}:${m.id}` : null, at: m.at || null });
+      if (r.conversationId) saved++;
+    });
+    return { saved, errors };
+  });
+
+  /* --- Primeros pasos para salones nuevos (pilotos) --- */
+  on('GET', '/api/onboarding', 'user', (ctx) => onboardingSteps(db, salonFor(ctx)));
+  on('POST', '/api/onboarding/starter-catalog', 'user', (ctx) => loadStarterCatalog(db, salonFor(ctx).id));
+
+  /* --- Solicitudes de prueba desde la web comercial --- */
+  const leadHits = new Map();
+  on('POST', '/api/leads', 'none', ({ body, ip }) => {
+    if (body.website) return { ok: true }; // campo trampa para bots
+    const hits = (leadHits.get(ip) || []).filter((t) => Date.now() - t < 3600000);
+    if (hits.length >= 5) throw new HttpError(429, 'Has enviado varias solicitudes. Inténtalo más tarde.');
+    leadHits.set(ip, [...hits, Date.now()]);
+    const name = str(body.name, 120);
+    const email = str(body.email, 120);
+    const phone = str(body.phone, 40);
+    if (!name) throw bad('Escribe tu nombre');
+    if (!email && !phone) throw bad('Déjanos un email o un teléfono para contactarte');
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw bad('El email no parece válido');
+    db.prepare('INSERT INTO leads (name, salon_name, email, phone, city, team_size, message) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(name, str(body.salon_name, 120), email, phone, str(body.city, 80), str(body.team_size, 20), str(body.message, 1000));
+    return { ok: true };
+  });
+  on('GET', '/api/admin/leads', 'admin', () => ({ leads: db.prepare('SELECT * FROM leads ORDER BY created_at DESC, id DESC LIMIT 500').all() }));
+  on('PUT', '/api/admin/leads/:id', 'admin', ({ params, body }) => {
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(Number(params.id));
+    if (!lead) throw notFound();
+    const status = ['nuevo', 'contactado', 'en prueba', 'cliente', 'descartado'].includes(body.status) ? body.status : lead.status;
+    db.prepare('UPDATE leads SET status = ?, notes = ? WHERE id = ?').run(status, body.notes !== undefined ? str(body.notes, 1000) : lead.notes, lead.id);
+    return { ok: true };
+  });
+
   on('GET', '/api/health', 'none', () => ({ ok: true, today: today() }));
-  on('GET', '/api/config', 'none', () => ({ demo: process.env.DEMO === '1' }));
+  on('GET', '/api/config', 'none', async () => ({ demo: process.env.DEMO === '1', ai: await aiAvailable(), landing: process.env.WEB_DEMO !== '1' }));
 
   /* ---------- Despacho ---------- */
 
   async function serveStatic(res, pathname) {
-    let rel = pathname === '/' ? 'index.html' : decodeURIComponent(pathname.slice(1));
+    // "/" es la web comercial; la aplicación vive en "/app".
+    let rel = pathname === '/' ? 'landing.html' : decodeURIComponent(pathname.replace(/^\/app(\/|$)/, '/').slice(1)) || 'index.html';
     let file = normalize(join(PUBLIC, rel));
     if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
     let data;
@@ -482,7 +726,10 @@ export function createApp(db) {
         // Las peticiones que modifican datos deben ser JSON: un formulario de
         // otra web no puede enviarlas (protección CSRF junto a SameSite).
         if (!String(req.headers['content-type'] || '').includes('application/json')) throw new HttpError(415, 'Se espera JSON');
-        ctx.body = await readBody(req);
+        const { parsed, raw } = await readBody(req);
+        ctx.body = parsed;
+        ctx.rawBody = raw;
+        ctx.headers = req.headers;
         if (typeof ctx.body !== 'object' || ctx.body === null || Array.isArray(ctx.body)) throw bad('JSON no válido');
       }
       if (r.auth === 'user' || r.auth === 'admin') {
@@ -495,6 +742,10 @@ export function createApp(db) {
         if (!ctx.salon) throw new HttpError(401, 'Clave de API no válida');
       }
       const out = await r.handler(ctx);
+      if (out && out.raw !== undefined) {
+        res.writeHead(out.status || 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(String(out.raw));
+      }
       if (out && out.cookie) {
         const secure = process.env.COOKIE_SECURE === '1' || req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
         return send(res, out.status, out.body, { 'Set-Cookie': `sid=${out.cookie.value}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${out.cookie.maxAge}${secure}` });

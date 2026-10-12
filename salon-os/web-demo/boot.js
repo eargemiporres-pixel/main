@@ -5,7 +5,7 @@
 import { Bytes } from 'node:crypto';
 
 // Sin process.versions: sql.js lo usaría para creerse dentro de Node.
-globalThis.process = { env: { DEMO: '1' } };
+globalThis.process = { env: { DEMO: '1', WEB_DEMO: '1' } };
 globalThis.Buffer = {
   from: (s) => Bytes.fromHex(s),
   concat: (chunks) => { const text = chunks.join(''); return { toString: () => text }; }

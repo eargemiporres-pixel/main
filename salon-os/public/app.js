@@ -35,6 +35,7 @@ const ICONS = {
   importar: 'M12 3v12M7 10l5 5 5-5M4 21h16',
   ajustes: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   consola: 'M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6',
+  mensajes: 'M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3'
 };
 const icon = (name, size = 18) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICONS[name]}"></path></svg>`;
@@ -170,7 +171,7 @@ function parseHash() {
 const go = (hash) => { location.hash = hash; };
 
 const SALON_NAV = [
-  ['panel', 'Panel'], ['cobro', 'Nuevo cobro'], ['caja', 'Caja'], ['clientes', 'Clientes'],
+  ['panel', 'Panel'], ['cobro', 'Nuevo cobro'], ['caja', 'Caja'], ['clientes', 'Clientes'], ['mensajes', 'Mensajes'],
   ['equipo', 'Equipo y horas'], ['catalogo', 'Servicios y productos'], ['pedidos', 'Pedidos de producto'],
   ['importar', 'Conectar TPV / importar'], ['ajustes', 'Ajustes']
 ];
@@ -182,6 +183,7 @@ async function render() {
     try { S.me = await fetch('/api/me', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)); } catch { S.me = null; }
   }
   if (!S.me) return renderLogin(app);
+  if (!S.config) S.config = await fetch('/api/config').then((r) => r.json()).catch(() => ({}));
   if (!S.ref) {
     // Los primeros días de un mes casi no tienen datos: se abre el mes anterior.
     const [y, m, d] = S.me.today.split('-').map(Number);
@@ -212,7 +214,7 @@ async function render() {
         <div class="nav-label">Ver salón</div>
         <select id="salonPick" aria-label="Salón">${S.me.salons.map((s) => `<option value="${s.id}" ${s.id === S.salonId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>` : ''}
       <nav class="nav" aria-label="Salón">
-        ${SALON_NAV.map(([p, label]) => `<a href="#/${p}" ${page === p ? 'aria-current="page"' : ''}>${icon(p)}${label}</a>`).join('')}
+        ${SALON_NAV.map(([p, label]) => `<a href="#/${p}" ${page === p ? 'aria-current="page"' : ''}>${icon(p)}${label}${p === 'mensajes' ? '<span class="nav-badge hidden" id="unreadBadge"></span>' : ''}</a>`).join('')}
       </nav>
       <div class="side-foot">
         <div class="side-card"><strong><span class="dot"></span> Datos al día</strong>Cada cobro actualiza métricas, clientes y caja al momento.</div>
@@ -229,6 +231,7 @@ async function render() {
     if (page === 'consola') go('#/panel'); else render();
   };
   const main = $('#main');
+  refreshUnread();
   try {
     await VIEWS[page](main, { id, query });
   } catch (err) {
@@ -238,6 +241,19 @@ async function render() {
 }
 
 window.addEventListener('hashchange', () => render());
+
+/* Número de mensajes sin leer en el menú lateral. */
+async function refreshUnread() {
+  if (isAdmin() && !S.salonId) return;
+  try {
+    const r = await api('/api/messages/summary');
+    const b = $('#unreadBadge');
+    if (!b) return;
+    b.textContent = r.unread > 99 ? '99+' : String(r.unread);
+    b.classList.toggle('hidden', !r.unread);
+    b.setAttribute('aria-label', `${r.unread} sin leer`);
+  } catch { /* sin conexión */ }
+}
 
 /* ---------- Login ---------- */
 function renderLogin(app) {
@@ -258,6 +274,7 @@ function renderLogin(app) {
         <label class="field">Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
         <p class="down hidden" id="loginErr" role="alert" style="margin:0;font-weight:600"></p>
         <button class="btn primary" type="submit">Entrar</button>
+        <a href="/" id="landingLink" class="muted hidden" style="font-size:14px">¿Aún no tienes cuenta? Solicita una prueba gratis</a>
         <div class="demo-box hidden" id="demoBox">
           <b style="color:var(--ink)">Demo con datos de ejemplo</b><br>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
@@ -270,6 +287,7 @@ function renderLogin(app) {
     </section>
   </div>`;
   fetch('/api/config').then((r) => r.json()).then((c) => {
+    if (c.landing) $('#landingLink').classList.remove('hidden');
     if (!c.demo) return;
     $('#demoBox').classList.remove('hidden');
     $$('[data-demo]').forEach((b) => (b.onclick = () => {
@@ -297,7 +315,7 @@ function renderLogin(app) {
 
 /* ---------- Panel del salón ---------- */
 VIEWS.panel = async (main) => {
-  const d = await api(`/api/dashboard?period=${S.period}&ref=${S.ref}`);
+  const [d, onboarding] = await Promise.all([api(`/api/dashboard?period=${S.period}&ref=${S.ref}`), api('/api/onboarding').catch(() => null)]);
   const m = d.metrics;
   const p = d.previous;
   const delta = (cur, prev, unit = '%') => {
@@ -332,6 +350,7 @@ VIEWS.panel = async (main) => {
     </div>
   </header>
 
+  ${onboardingCard(onboarding)}
   <section class="grid g4" aria-label="Indicadores clave">
     <div class="kpi"><span class="k">Facturación</span><span class="v num">${eur(m.revenue)}</span><span class="d">${delta(m.revenue, p.revenue)}</span></div>
     <div class="kpi"><span class="k">Ticket medio del salón</span><span class="v num">${eur(m.avgTicket, 2)}</span><span class="d">${delta(m.avgTicket, p.avgTicket)}</span></div>
@@ -427,6 +446,12 @@ VIEWS.panel = async (main) => {
   </section>`;
 
   $$('[data-period]', main).forEach((b) => (b.onclick = () => { S.period = b.dataset.period; render(); }));
+  const starter = $('[data-starter]', main);
+  if (starter) starter.onclick = async () => {
+    const r = await api('/api/onboarding/starter-catalog', { method: 'POST', body: {} });
+    toast(r.skipped ? 'Ya tienes servicios cargados' : `Cargados ${r.services} servicios y ${r.products} productos: ajusta precios en «Servicios y productos»`);
+    render();
+  };
   $('#refMonth', main).onchange = (e) => { if (e.target.value) { S.ref = e.target.value; render(); } };
 };
 
@@ -471,8 +496,6 @@ VIEWS.clientes = async (main, { id }) => {
     const d = await api(`/api/clients/${cid}`);
     const c = d.client;
     const s = d.stats;
-    const phone = String(c.phone || '').replace(/\D/g, '');
-    const wa = phone.length >= 9 ? `https://wa.me/${phone.length === 9 ? `34${phone}` : phone}?text=${encodeURIComponent(`Hola ${c.name.split(' ')[0]}, ¡te echamos de menos en ${S.me.salon?.name || 'el salón'}! ¿Te reservamos cita?`)}` : null;
     box.innerHTML = `
       <div class="card" style="flex-direction:row;align-items:center;gap:18px;flex-wrap:wrap">
         <span class="avatar lg">${esc(initials(c.name))}</span>
@@ -482,7 +505,7 @@ VIEWS.clientes = async (main, { id }) => {
           <div class="muted" style="font-size:14px">${esc(c.phone || 'Sin teléfono')}${c.email ? ` · ${esc(c.email)}` : ''}</div>
         </div>
         <div class="head-actions">
-          ${wa ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">Enviar WhatsApp</a>` : ''}
+          <button type="button" class="btn" id="writeClient">Escribir</button>
           <button type="button" class="btn" id="editClient">Editar</button>
           <a class="btn dark" href="#/cobro?cliente=${c.id}">Nuevo cobro</a>
         </div>
@@ -495,6 +518,14 @@ VIEWS.clientes = async (main, { id }) => {
         <div class="kpi small"><span class="k">Retail comprado</span><span class="v">${eur(s.retailAmount)}</span><span class="d">${fmt(s.retailUnits)} unidades</span></div>
       </div>
       ${s.nextVisit ? `<div class="notice ${s.nextVisitOverdue ? 'warn' : ''}">Próxima visita estimada: ${fdate(s.nextVisit)}${s.nextVisitOverdue ? ' · ya ha pasado: buen momento para escribirle' : ''}</div>` : ''}
+      <div class="card" id="insightsCard">
+        <div class="card-head"><h2>Lo que sabemos por sus mensajes</h2>
+          <div class="head-actions">
+            ${d.conversations.length ? `<a class="btn small" href="#/mensajes/${d.conversations[0].id}">Ver conversación${d.conversations[0].unread ? ` · ${d.conversations[0].unread} sin leer` : ''}</a>` : ''}
+            ${S.config?.ai && d.conversations.length ? '<button type="button" class="btn small" id="aiInsights">Analizar con IA</button>' : ''}
+          </div></div>
+        ${insightsBlock(d.insights)}
+      </div>
       <div class="grid g2">
         <div class="card"><h2>Top 3 servicios</h2>${d.topServices.length ? d.topServices.map((t, i) => `<div class="kv"><span>${i + 1}. ${esc(t.name)}</span><span>${fmt(t.units)} veces</span></div>`).join('') : '<div class="empty">Sin servicios todavía.</div>'}</div>
         <div class="card"><h2>Producto retail comprado</h2>${d.retail.length ? d.retail.map((r) => `<div class="kv"><span>${esc(r.name)} <small>· ${fmt(r.units)} uds</small></span><span>${eur(r.amount, 2)}</span></div>`).join('') : '<div class="muted" style="font-size:14px">Aún no ha comprado producto. Recomiéndale su rutina de mantenimiento en la próxima visita.</div>'}</div>
@@ -505,6 +536,14 @@ VIEWS.clientes = async (main, { id }) => {
       </div>
       <div class="notes"><h3>Notas técnicas</h3><div style="white-space:pre-line;font-size:14px">${c.notes ? esc(c.notes) : '<span class="muted">Sin notas. Usa «Editar» para guardar fórmulas de color, alergias o preferencias.</span>'}</div></div>`;
     $('#editClient').onclick = () => clientForm(c, () => loadDetail(cid));
+    $('#writeClient').onclick = () => newMessageDialog(c);
+    const aiBtn = $('#aiInsights');
+    if (aiBtn) aiBtn.onclick = async () => {
+      aiBtn.disabled = true;
+      aiBtn.textContent = 'Analizando…';
+      try { await api(`/api/clients/${cid}/insights/ai`, { method: 'POST', body: {} }); toast('Ficha actualizada con IA'); loadDetail(cid); }
+      catch (err) { toast(err.message, true); aiBtn.disabled = false; aiBtn.textContent = 'Analizar con IA'; }
+    };
   };
 
   await loadList();
@@ -1002,7 +1041,9 @@ VIEWS.ajustes = async (main) => {
       <div class="form-actions"><button class="btn" type="submit">Cambiar contraseña</button></div>
       <p class="muted" style="font-size:13px;margin:0">Plan: ${esc(s.plan)} · sesión de ${esc(S.me.user.email)}</p>
     </form>
-  </section>`;
+  </section>
+  <section class="card" id="channels"><div class="loading">Cargando canales…</div></section>`;
+  renderChannels($('#channels'));
   $('#salonForm').onsubmit = async (e) => {
     e.preventDefault();
     const f = e.target;
@@ -1072,7 +1113,8 @@ VIEWS.consola = async (main) => {
       <td class="r num">${s.occupancy == null ? '—' : `${fmt(s.occupancy * 100)} %`}</td><td class="r num">${s.consumptionPct == null ? '—' : `${fmt(s.consumptionPct, 1)} %`}</td>
       <td class="r num">${s.signal.daysLeft == null ? '—' : `${s.signal.daysLeft} d`}</td><td><span class="tag ${SIGNAL_TAG[s.signal.level]}">${s.signal.level}</span></td>
       <td class="r" style="white-space:nowrap"><button type="button" class="btn small" data-edit="${s.id}">Plan</button> <button type="button" class="btn small primary" data-view="${s.id}">Ver panel</button></td></tr>`).join('') || '<tr><td colspan="10" class="empty">Ningún salón con este filtro.</td></tr>'}</tbody></table></div>
-  </section>`;
+  </section>
+  <section class="card" id="leads" aria-label="Solicitudes de prueba"><div class="loading">Cargando solicitudes…</div></section>`;
 
   $('#cRef').onchange = (e) => { if (e.target.value) { S.consoleRef = e.target.value; render(); } };
   $$('[data-cf]', main).forEach((btn) => (btn.onclick = () => { S.consoleFilter = btn.dataset.cf; render(); }));
@@ -1089,27 +1131,465 @@ VIEWS.consola = async (main) => {
       onSubmit: async (v) => { await api(`/api/admin/salons/${s.id}`, { method: 'PUT', body: v }); toast('Guardado'); render(); }
     });
   }));
-  $('#addSalon').onclick = () => openForm({
-    title: 'Dar de alta un salón',
+  $('#addSalon').onclick = () => salonForm();
+  renderLeads($('#leads'));
+};
+
+/* ---------- Comunicación con clientes ---------- */
+const CHANNEL = { whatsapp: 'WhatsApp', email: 'Email', sms: 'SMS', instagram: 'Instagram', web: 'Web' };
+const CHANNEL_TAG = { whatsapp: 'green', email: 'blue', sms: 'amber', instagram: 'plum', web: '' };
+const MOOD_TAG = { 'Muy satisfecha': 'green', 'Satisfecha': 'green', 'Neutral': '', 'Molesta o preocupada': 'red' };
+const TEMPLATE_KINDS = [['recordatorio', 'Le toca volver'], ['reactivacion', 'Reactivación'], ['segunda_visita', 'Segunda visita'], ['postservicio', 'Después del servicio'], ['confirmacion', 'Confirmar cita'], ['promo', 'Promoción'], ['otro', 'Otro']];
+const MSG_STATUS = { manual: 'Para enviar desde el móvil', enviado: 'Enviado', entregado: 'Entregado', 'leído': 'Leído', error: 'No se pudo enviar', recibido: '' };
+
+const toDate = (at) => new Date(`${String(at).replace(' ', 'T')}Z`);
+function fmtWhen(at) {
+  if (!at) return '';
+  const d = toDate(at);
+  const nowD = new Date();
+  const hm = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === nowD.toDateString()) return hm;
+  const y = new Date(nowD);
+  y.setDate(y.getDate() - 1);
+  if (d.toDateString() === y.toDateString()) return `ayer ${hm}`;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+const fillTemplate = (body, vars) => String(body).replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null && vars[k] !== '' ? String(vars[k]) : m));
+
+/* Bloque "Lo que sabemos": tono, etiquetas, temas, preferencias e IA. */
+function insightsBlock(ins) {
+  if (!ins || !ins.inboundCount) {
+    return '<p class="muted" style="margin:0;font-size:14px">Aún no nos ha escrito. Cuando escriba por WhatsApp o email, aquí verás su tono, qué servicios le interesan y sus preferencias.</p>';
+  }
+  const ai = ins.ai;
+  return `<div class="insights">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span class="tag ${MOOD_TAG[ins.mood] || ''}">${esc(ins.mood)}</span>
+      ${ins.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('')}
+    </div>
+    <p style="margin:0;font-size:14px;line-height:1.5">${esc(ins.summary)}</p>
+    <div class="insight-grid">
+      ${ins.topics.length ? `<div><div class="block-title">Por qué escribe</div>${ins.topics.slice(0, 4).map((t) => `<div class="kv"><span>${esc(t.name)}</span><span>${t.count}</span></div>`).join('')}</div>` : ''}
+      ${ins.services.length ? `<div><div class="block-title">Servicios que le interesan</div>${ins.services.map((t) => `<div class="kv"><span>${esc(t.name)}</span><span>${t.count}</span></div>`).join('')}</div>` : ''}
+      <div><div class="block-title">Datos de contacto</div>
+        <div class="kv"><span>Mensajes suyos</span><span>${ins.inboundCount}</span></div>
+        ${ins.preferences.length ? `<div class="kv"><span>Días y franjas que menciona</span><span>${esc(ins.preferences.join(', '))}</span></div>` : ''}
+        ${ins.responseMinutes != null ? `<div class="kv"><span>Le respondemos en</span><span>${ins.responseMinutes < 60 ? `${ins.responseMinutes} min` : `${fmt(ins.responseMinutes / 60, 1)} h`}</span></div>` : ''}
+        ${ins.lastContact ? `<div class="kv"><span>Último mensaje</span><span>${fmtWhen(ins.lastContact)}</span></div>` : ''}
+      </div>
+    </div>
+    ${ai ? `<div class="ai-box">
+      <div class="block-title">Resumen con IA · ${esc(ai.at || '')}</div>
+      <p style="margin:0">${esc(ai.resumen)}</p>
+      <p style="margin:0"><b>Cómo se siente:</b> ${esc(ai.emocionalidad)}</p>
+      ${ai.oportunidades?.length ? `<p style="margin:0"><b>Qué ofrecerle:</b> ${ai.oportunidades.map(esc).join(' · ')}</p>` : ''}
+      ${ai.alertas?.length ? `<p style="margin:0" class="down"><b>Ojo:</b> ${ai.alertas.map(esc).join(' · ')}</p>` : ''}
+      ${ai.siguiente_paso ? `<p style="margin:0"><b>Siguiente paso:</b> ${esc(ai.siguiente_paso)}</p>` : ''}
+    </div>` : ''}
+  </div>`;
+}
+
+/* Aviso con enlace para enviar a mano cuando el canal no está conectado. */
+function manualSendNotice(link, channel) {
+  const label = channel === 'email' ? 'Abrir el email y enviar' : channel === 'sms' ? 'Abrir SMS y enviar' : 'Abrir WhatsApp y enviar';
+  return `<div class="notice info" style="justify-content:space-between;flex-wrap:wrap">
+    <span>Mensaje guardado. Como ${CHANNEL[channel] || 'este canal'} aún no está conectado, envíalo tú desde el móvil o WhatsApp Web.</span>
+    <a class="btn small primary" href="${esc(link)}" target="_blank" rel="noopener">${label}</a></div>`;
+}
+
+/* Escribir a un cliente (desde la ficha) o a cualquier teléfono/email. */
+function newMessageDialog(client = null) {
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `<form method="dialog">
+    <h2>Nuevo mensaje</h2>
+    <div class="form-grid" style="grid-template-columns:minmax(0,1fr) 160px">
+      ${client ? `<div class="field">Para<div class="input" style="display:flex;align-items:center">${esc(client.name)} <small class="muted" style="margin-left:8px">${esc(client.phone || client.email || '')}</small></div></div>`
+        : `<label class="field">Para<div class="suggest"><input class="input" id="nmTo" placeholder="Nombre del cliente o teléfono" autocomplete="off"><div class="suggest-list hidden" id="nmSuggest"></div></div></label>`}
+      <label class="field">Canal<select id="nmChannel"><option value="whatsapp">WhatsApp</option><option value="email">Email</option><option value="sms">SMS</option></select></label>
+    </div>
+    <label class="field">Plantilla<select id="nmTpl"><option value="">Escribir desde cero</option></select></label>
+    <label class="field">Mensaje<textarea id="nmText" required style="min-height:120px"></textarea></label>
+    <div id="nmResult"></div>
+    <p class="err down hidden" role="alert" style="margin:0;font-weight:600"></p>
+    <div class="form-actions"><button type="button" class="btn" data-cancel>Cancelar</button><button class="btn primary" type="submit">Enviar</button></div>
+  </form>`;
+  document.body.appendChild(dlg);
+  let target = client ? { client_id: client.id, name: client.name } : null;
+  const err = (m) => { const p = $('.err', dlg); p.textContent = m; p.classList.toggle('hidden', !m); };
+  $('[data-cancel]', dlg).onclick = () => dlg.close();
+  dlg.addEventListener('close', () => dlg.remove());
+  api('/api/templates').then((r) => {
+    const sel = $('#nmTpl', dlg);
+    sel.innerHTML += r.templates.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+    sel.onchange = () => {
+      const t = r.templates.find((x) => String(x.id) === sel.value);
+      if (!t) return;
+      const name = (target?.name || '').split(' ')[0];
+      $('#nmText', dlg).value = fillTemplate(t.body, { nombre: name, salon: S.me.salon?.name || S.me.salons.find((x) => x.id === S.salonId)?.name || '' });
+      $('#nmText', dlg).dataset.kind = t.kind;
+    };
+  }).catch(() => {});
+  if (!client) {
+    let timer;
+    $('#nmTo', dlg).oninput = (e) => {
+      target = null;
+      const q = e.target.value.trim();
+      const list = $('#nmSuggest', dlg);
+      clearTimeout(timer);
+      if (q.replace(/\D/g, '').length >= 9) { target = { contact: q }; list.classList.add('hidden'); return; }
+      if (q.length < 2) return list.classList.add('hidden');
+      timer = setTimeout(async () => {
+        const r = await api(`/api/clients?q=${encodeURIComponent(q)}`);
+        list.innerHTML = r.clients.slice(0, 8).map((c) => `<button type="button" data-cid="${c.id}">${esc(c.name)} <small class="muted">${esc(c.phone || c.email || '')}</small></button>`).join('') || '<div class="empty">Sin resultados. Escribe un teléfono para enviar a un número nuevo.</div>';
+        list.classList.remove('hidden');
+        $$('[data-cid]', list).forEach((b) => (b.onclick = () => {
+          const c = r.clients.find((x) => String(x.id) === b.dataset.cid);
+          target = { client_id: c.id, name: c.name };
+          $('#nmTo', dlg).value = c.name;
+          list.classList.add('hidden');
+        }));
+      }, 200);
+    };
+  }
+  $('form', dlg).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err('');
+    if (!target) return err('Elige un cliente de la lista o escribe un teléfono.');
+    const channel = $('#nmChannel', dlg).value;
+    try {
+      const r = await api('/api/conversations', { method: 'POST', body: { ...target, channel, text: $('#nmText', dlg).value, template: $('#nmText', dlg).dataset.kind || null } });
+      if (r.link) {
+        $('#nmResult', dlg).innerHTML = manualSendNotice(r.link, channel);
+        $('button[type=submit]', dlg).remove();
+        $('[data-cancel]', dlg).textContent = 'Ir a la conversación';
+        $('[data-cancel]', dlg).onclick = () => { dlg.close(); go(`#/mensajes/${r.id}`); };
+      } else {
+        toast(r.status === 'error' ? `No se pudo enviar: ${r.error}` : 'Mensaje enviado', r.status === 'error');
+        dlg.close();
+        go(`#/mensajes/${r.id}`);
+      }
+    } catch (ex) { err(ex.message); }
+  });
+  dlg.showModal();
+}
+
+VIEWS.mensajes = async (main, { id, query }) => {
+  const tab = query.get('tab') || 'chats';
+  main.innerHTML = `
+  <header class="page-head">
+    <div><div class="eyebrow" id="msgEyebrow">&nbsp;</div><h1>Mensajes</h1></div>
+    <div class="head-actions">
+      <div class="seg" role="group" aria-label="Sección">
+        ${[['chats', 'Conversaciones'], ['recordatorios', 'Recordatorios'], ['plantillas', 'Plantillas']].map(([k, l]) => `<button type="button" data-tab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}
+      </div>
+      <button type="button" class="btn primary" id="newMsg">Nuevo mensaje</button>
+    </div>
+  </header>
+  <div id="msgBody"><div class="loading">Cargando…</div></div>`;
+  $$('[data-tab]', main).forEach((b) => (b.onclick = () => go(b.dataset.tab === 'chats' ? '#/mensajes' : `#/mensajes?tab=${b.dataset.tab}`)));
+  $('#newMsg').onclick = () => newMessageDialog();
+  const body = $('#msgBody');
+  if (tab === 'recordatorios') return renderReminders(body);
+  if (tab === 'plantillas') return renderTemplates(body);
+  return renderInbox(body, id);
+};
+
+async function renderInbox(box, id) {
+  S.convFilter = S.convFilter || 'abiertas';
+  S.convQ = S.convQ || '';
+  box.innerHTML = `<div class="inbox">
+    <section class="card inbox-list" aria-label="Conversaciones">
+      <input type="search" class="input" id="convQ" placeholder="Buscar por nombre, teléfono o texto" value="${esc(S.convQ)}" aria-label="Buscar conversación">
+      <div class="chips" role="group" aria-label="Filtro" id="convFilters"></div>
+      <div class="conv-list" id="convList"><div class="empty">Cargando…</div></div>
+    </section>
+    <section class="card inbox-thread" id="thread" aria-label="Conversación"><div class="empty">Elige una conversación.</div></section>
+    <aside class="card inbox-side" id="side" aria-label="Cliente"></aside>
+  </div>`;
+
+  const loadList = async () => {
+    const d = await api(`/api/conversations?filter=${S.convFilter}&q=${encodeURIComponent(S.convQ)}`);
+    $('#msgEyebrow').textContent = `${fmt(d.counts.abiertas || 0)} abiertas · ${fmt(d.counts.unread || 0)} mensajes sin leer · WhatsApp ${d.channels.whatsapp === 'api' ? 'conectado' : 'en modo manual'}`;
+    $('#convFilters').innerHTML = CONV_FILTERS.map(([k, l]) => `<button type="button" class="chip" data-f="${k}" aria-pressed="${S.convFilter === k}">${l}${d.counts[k] ? ` · ${d.counts[k]}` : ''}</button>`).join('');
+    $$('#convFilters [data-f]').forEach((b) => (b.onclick = () => { S.convFilter = b.dataset.f; loadList(); }));
+    $('#convList').innerHTML = d.conversations.length ? d.conversations.map((c) => {
+      const name = c.client_name || c.contact_name || `+${c.contact}`;
+      return `<button type="button" class="conv-row ${c.unread ? 'unread' : ''}" data-id="${c.id}" aria-pressed="${String(c.id) === String(id)}">
+        <span class="avatar">${esc(initials(name))}</span>
+        <span class="meta"><span class="top"><b>${esc(name)}</b><small>${fmtWhen(c.last_message_at)}</small></span>
+          <span class="preview">${esc(c.last_preview)}</span>
+          <span class="bottom"><span class="tag ${CHANNEL_TAG[c.channel]}">${CHANNEL[c.channel]}</span>${c.assigned_name ? `<small class="muted">${esc(c.assigned_name)}</small>` : ''}${c.unread ? `<span class="nav-badge">${c.unread}</span>` : ''}</span>
+        </span></button>`;
+    }).join('') : `<div class="empty">${S.convFilter === 'abiertas' ? 'No hay conversaciones abiertas. Los mensajes que te escriban por WhatsApp aparecerán aquí.' : 'Nada con este filtro.'}</div>`;
+    $$('#convList [data-id]').forEach((b) => (b.onclick = () => go(`#/mensajes/${b.dataset.id}`)));
+    if (!current && d.conversations[0]) loadThread(d.conversations[0].id);
+  };
+
+  let current = id ? Number(id) : null;
+  let timer;
+  $('#convQ').oninput = (e) => { S.convQ = e.target.value; clearTimeout(timer); timer = setTimeout(loadList, 250); };
+
+  async function loadThread(cid, notice = '') {
+    current = cid;
+    const d = await api(`/api/conversations/${cid}`);
+    const conv = d.conversation;
+    const name = conv.client_name || conv.contact_name || `+${conv.contact}`;
+    const mode = d.channels[conv.channel] || 'manual';
+    const client = d.client;
+    const vars = {
+      nombre: name.split(' ')[0],
+      salon: d.salonName,
+      servicio: client?.topServices[0]?.name.toLowerCase() || 'servicio',
+      dias: client?.stats.daysSinceLast ?? ''
+    };
+    let lastDay = '';
+    const bubbles = d.messages.map((m) => {
+      const day = toDate(m.created_at).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+      const sep = day !== lastDay ? `<div class="day-sep"><span>${esc(day)}</span></div>` : '';
+      lastDay = day;
+      const meta = [toDate(m.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }), m.direction === 'out' ? MSG_STATUS[m.status] || m.status : '', m.author && m.direction === 'out' ? m.author : ''].filter(Boolean).join(' · ');
+      return `${sep}<div class="bubble ${m.direction} ${m.status === 'error' ? 'failed' : ''}"><div>${esc(m.body)}</div><small>${esc(meta)}${m.error ? ` · ${esc(m.error)}` : ''}</small></div>`;
+    }).join('');
+    $('#thread').innerHTML = `
+      <div class="thread-head">
+        <div class="person"><span class="avatar">${esc(initials(name))}</span><div><b>${esc(name)}</b><small>${CHANNEL[conv.channel]} · ${conv.channel === 'email' ? esc(conv.contact) : `+${esc(conv.contact)}`}</small></div></div>
+        <div class="head-actions">
+          <select class="input small-select" id="convStatus" aria-label="Estado">${[['abierta', 'Abierta'], ['pendiente', 'Pendiente'], ['cerrada', 'Cerrada']].map(([v, l]) => `<option value="${v}" ${conv.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
+          <select class="input small-select" id="convAssign" aria-label="Asignada a"><option value="">Sin asignar</option>${d.employees.map((e) => `<option value="${e.id}" ${e.id === conv.assigned_to ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="messages" id="msgs">${bubbles || '<div class="empty">Sin mensajes todavía.</div>'}</div>
+      <form class="composer" id="composer">
+        ${notice}
+        ${mode === 'api' && conv.channel === 'whatsapp' && !d.windowOpen ? '<div class="notice info">Han pasado más de 24 h desde su último mensaje: WhatsApp solo deja enviar plantillas aprobadas por Meta. Si falla, te daremos un enlace para enviarlo desde el móvil.</div>' : ''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select class="input small-select" id="tplPick" aria-label="Plantilla"><option value="">Plantillas…</option>${d.templates.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>
+          <span class="muted" style="font-size:12px;align-self:center">${mode === 'api' ? `Se envía por ${CHANNEL[conv.channel]} al momento.` : `Modo manual: se guarda aquí y te damos un enlace para enviarlo.`}</span>
+        </div>
+        <div class="composer-row">
+          <textarea class="input" id="msgText" placeholder="Escribe una respuesta…" aria-label="Mensaje" rows="2"></textarea>
+          <button class="btn primary" type="submit">Enviar</button>
+        </div>
+      </form>`;
+    const msgs = $('#msgs');
+    msgs.scrollTop = msgs.scrollHeight;
+    $('#convStatus').onchange = async (e) => { await api(`/api/conversations/${cid}`, { method: 'PUT', body: { status: e.target.value } }); toast('Estado actualizado'); loadList(); };
+    $('#convAssign').onchange = async (e) => { await api(`/api/conversations/${cid}`, { method: 'PUT', body: { assigned_to: e.target.value || null } }); toast('Conversación asignada'); };
+    let kind = null;
+    $('#tplPick').onchange = (e) => {
+      const t = d.templates.find((x) => String(x.id) === e.target.value);
+      if (!t) return;
+      $('#msgText').value = fillTemplate(t.body, vars);
+      kind = t.kind;
+      $('#msgText').focus();
+    };
+    $('#msgText').onkeydown = (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('#composer').requestSubmit(); };
+    $('#composer').onsubmit = async (e) => {
+      e.preventDefault();
+      const text = $('#msgText').value.trim();
+      if (!text) return;
+      try {
+        const r = await api(`/api/conversations/${cid}/messages`, { method: 'POST', body: { text, template: kind } });
+        if (r.status === 'error' && !r.link) toast(`No se pudo enviar: ${r.error}`, true);
+        await loadThread(cid, r.link ? manualSendNotice(r.link, conv.channel) : '');
+        loadList();
+      } catch (err) { toast(err.message, true); }
+    };
+
+    const side = $('#side');
+    if (!client) {
+      side.innerHTML = `<h2>Sin ficha de cliente</h2><p class="muted" style="margin:0;font-size:14px">Este número aún no está en tus clientes.</p><button type="button" class="btn" id="mkClient">Crear ficha con este contacto</button>`;
+      $('#mkClient').onclick = async () => {
+        const r = await api('/api/clients', { method: 'POST', body: { name: conv.contact_name || `+${conv.contact}`, phone: conv.channel === 'email' ? '' : conv.contact, email: conv.channel === 'email' ? conv.contact : '' } });
+        await api(`/api/conversations/${cid}`, { method: 'PUT', body: { client_id: r.id } });
+        toast('Ficha creada');
+        loadThread(cid);
+      };
+    } else {
+      const st = client.stats;
+      side.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2>${esc(client.client.name)}</h2><span class="tag ${STATE_TAG[client.state] || ''}">${esc(client.state)}</span></div>
+        <div>
+          <div class="kv"><span>Visitas</span><span>${fmt(st.visits)}</span></div>
+          <div class="kv"><span>Última visita</span><span>${st.lastVisit ? fdate(st.lastVisit) : '—'}</span></div>
+          <div class="kv"><span>Próxima estimada</span><span class="${st.nextVisitOverdue ? 'down' : ''}">${st.nextVisit ? fdate(st.nextVisit) : '—'}</span></div>
+          <div class="kv"><span>Ticket medio</span><span>${eur(st.avgTicket, 2)}</span></div>
+          <div class="kv"><span>Top servicio</span><span>${esc(client.topServices[0]?.name || '—')}</span></div>
+        </div>
+        <div class="block-title" style="margin-top:4px">Lo que sabemos</div>
+        ${insightsBlock(d.insights)}
+        ${client.client.notes ? `<div class="notes" style="padding:12px 14px"><h3>Notas técnicas</h3><div style="font-size:13px;white-space:pre-line">${esc(client.client.notes)}</div></div>` : ''}
+        <div class="head-actions"><a class="btn small" href="#/clientes/${client.client.id}">Ver ficha</a><a class="btn small dark" href="#/cobro?cliente=${client.client.id}">Nuevo cobro</a></div>`;
+    }
+    $$('#convList [data-id]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.id === String(cid))));
+    refreshUnread();
+  }
+
+  await loadList();
+  if (id) await loadThread(Number(id)).catch((e) => { $('#thread').innerHTML = `<div class="notice warn">${esc(e.message)}</div>`; });
+}
+const CONV_FILTERS = [['abiertas', 'Abiertas'], ['sin_leer', 'Sin leer'], ['pendientes', 'Pendientes'], ['cerradas', 'Cerradas'], ['todas', 'Todas']];
+
+async function renderReminders(box) {
+  const d = await api('/api/reminders');
+  const total = d.groups.reduce((a, g) => a + g.items.length, 0);
+  $('#msgEyebrow').textContent = `${total} clientes a los que conviene escribir hoy`;
+  box.innerHTML = `
+    <div class="notice ${d.channels.whatsapp === 'api' ? '' : 'info'}" style="margin-bottom:16px">${d.channels.whatsapp === 'api'
+      ? 'WhatsApp Business conectado: los recordatorios salen al momento.'
+      : 'Modo manual: al enviar, los mensajes quedan registrados y te damos un botón por cliente para abrirlos en WhatsApp. Conecta WhatsApp Business en Ajustes para que salgan solos.'}</div>
+    <div class="grid g2" id="remGroups">${d.groups.map((g, gi) => `<section class="card" data-group="${gi}">
+      <div class="card-head"><h2>${esc(g.title)} <span class="muted" style="font-weight:500">· ${g.items.length}</span></h2>
+        ${g.items.length ? `<button type="button" class="btn small primary" data-send="${gi}">Enviar seleccionados</button>` : ''}</div>
+      <p class="muted" style="margin:0;font-size:13px">${esc(g.description)}</p>
+      <div class="rem-list">${g.items.length ? g.items.map((it, ii) => `<label class="rem-item">
+        <input type="checkbox" checked data-item="${ii}">
+        <span><b>${esc(it.name)}</b> <small class="muted">· ${esc(it.reason)}</small><br><span class="rem-text">${esc(it.text)}</span></span>
+      </label>`).join('') : '<div class="empty">Nadie por ahora.</div>'}</div>
+      <div class="rem-result"></div>
+    </section>`).join('')}</div>`;
+  $$('[data-send]', box).forEach((btn) => (btn.onclick = async () => {
+    const gi = Number(btn.dataset.send);
+    const g = d.groups[gi];
+    const card = $(`[data-group="${gi}"]`, box);
+    const items = $$('[data-item]', card).filter((c) => c.checked).map((c) => g.items[Number(c.dataset.item)]).map((it) => ({ client_id: it.client_id, text: it.text, kind: g.kind }));
+    if (!items.length) return toast('Marca al menos un cliente', true);
+    btn.disabled = true;
+    try {
+      const r = await api('/api/reminders/send', { method: 'POST', body: { items } });
+      const manual = r.results.filter((x) => x.link);
+      const ok = r.results.filter((x) => x.status === 'enviado').length;
+      $('.rem-list', card).innerHTML = '';
+      $('.rem-result', card).innerHTML = `${ok ? `<div class="notice">${ok} enviados por WhatsApp.</div>` : ''}
+        ${manual.length ? `<div class="notice info">Ábrelos uno a uno y pulsa enviar en WhatsApp:</div>${manual.map((x) => `<div class="kv"><span>${esc(x.name)}</span><a class="btn small" href="${esc(x.link)}" target="_blank" rel="noopener">Abrir WhatsApp</a></div>`).join('')}` : ''}`;
+      btn.remove();
+      refreshUnread();
+    } catch (err) { toast(err.message, true); btn.disabled = false; }
+  }));
+}
+
+async function renderTemplates(box) {
+  const d = await api('/api/templates');
+  $('#msgEyebrow').textContent = `${d.templates.length} plantillas · usa {nombre}, {salon}, {servicio}, {dias} y {fecha}`;
+  box.innerHTML = `<section class="card">
+    <div class="card-head"><h2>Plantillas de mensajes</h2><button type="button" class="btn small primary" id="newTpl">Nueva plantilla</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Uso</th><th>Texto</th><th></th></tr></thead>
+    <tbody>${d.templates.map((t) => `<tr><td><b>${esc(t.name)}</b></td><td><span class="tag">${esc((TEMPLATE_KINDS.find(([k]) => k === t.kind) || [, t.kind])[1])}</span></td><td style="min-width:280px">${esc(t.body)}</td>
+      <td class="r"><button type="button" class="btn small" data-edit="${t.id}">Editar</button> <button type="button" class="icon-btn" data-del="${t.id}" aria-label="Borrar plantilla">${icon('trash', 16)}</button></td></tr>`).join('')}</tbody></table></div>
+  </section>`;
+  const form = (t = null) => openForm({
+    title: t ? 'Editar plantilla' : 'Nueva plantilla',
+    fields: [
+      { name: 'name', label: 'Nombre', value: t?.name, required: true },
+      { name: 'kind', label: 'Uso', type: 'select', value: t?.kind || 'otro', options: TEMPLATE_KINDS },
+      { name: 'body', label: 'Texto', type: 'textarea', value: t?.body, required: true, full: true, hint: 'Variables: {nombre}, {salon}, {servicio}, {dias}, {fecha}' }
+    ],
+    onSubmit: async (v) => { await api(t ? `/api/templates/${t.id}` : '/api/templates', { method: t ? 'PUT' : 'POST', body: v }); toast('Plantilla guardada'); renderTemplates(box); }
+  });
+  $('#newTpl').onclick = () => form();
+  $$('[data-edit]', box).forEach((b) => (b.onclick = () => form(d.templates.find((t) => String(t.id) === b.dataset.edit))));
+  $$('[data-del]', box).forEach((b) => (b.onclick = async () => {
+    if (!(await confirmAction('¿Borrar esta plantilla?', 'Borrar'))) return;
+    await api(`/api/templates/${b.dataset.del}`, { method: 'DELETE', body: {} });
+    renderTemplates(box);
+  }));
+}
+
+/* ---------- Primeros pasos (salones en prueba) ---------- */
+function onboardingCard(o) {
+  if (!o || o.done >= o.total) return '';
+  return `<section class="card onboarding" aria-label="Primeros pasos">
+    <div class="card-head"><h2>Primeros pasos · ${o.done} de ${o.total}</h2><span class="muted">En una tarde lo tienes funcionando</span></div>
+    <div class="bar"><div style="width:${Math.round((o.done / o.total) * 100)}%"></div></div>
+    <div class="steps">${o.steps.map((s) => `<div class="step ${s.done ? 'done' : ''}">
+      <span class="check" aria-hidden="true">${s.done ? '✓' : ''}</span>
+      <span class="txt"><b>${esc(s.label)}</b><small>${esc(s.hint)}</small></span>
+      ${s.done ? '<span class="tag green">Hecho</span>' : s.action === 'starter' ? '<button type="button" class="btn small primary" data-starter>Cargar menú típico</button>' : `<a class="btn small" href="${s.href}">Empezar</a>`}
+    </div>`).join('')}</div>
+  </section>`;
+}
+
+/* Canales de comunicación del salón (Ajustes). */
+async function renderChannels(box) {
+  const c = await api('/api/channels');
+  const webhook = `${location.origin}/api/webhooks/whatsapp`;
+  box.innerHTML = `
+    <div class="card-head"><h2>Canales de comunicación</h2><span class="muted">Para recibir y enviar mensajes desde «Mensajes»</span></div>
+    <div class="grid g2">
+      <form id="waForm" class="channel">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3>WhatsApp Business</h3><span class="tag ${c.status.whatsapp === 'api' ? 'green' : 'amber'}">${c.status.whatsapp === 'api' ? 'Conectado' : 'Modo manual'}</span></div>
+        <p class="muted" style="margin:0;font-size:13px">Con la API de WhatsApp Business (Meta), los mensajes de tus clientes llegan aquí solos y las respuestas y recordatorios salen al momento. Sin conectar, funciona en modo manual: se registra todo y se abre WhatsApp para enviar.</p>
+        <label class="field">Número de WhatsApp del salón<input name="wa_number" value="${esc(c.wa_number || '')}" placeholder="+34 600 000 000"></label>
+        <label class="field">Phone number ID (de Meta)<input name="wa_phone_number_id" value="${esc(c.wa_phone_number_id || '')}" autocomplete="off"></label>
+        <label class="field">Token de acceso<input name="wa_token" type="password" autocomplete="off" placeholder="${c.wa_token_set ? 'Guardado · escribe uno nuevo para cambiarlo' : 'Pega aquí el token permanente'}"></label>
+        <div class="field">URL del webhook (configúrala en Meta)<code class="key">${esc(webhook)}</code>
+          <span class="hint">${c.webhookReady ? 'El token de verificación te lo da tu proveedor de Salon OS.' : 'Falta configurar WA_VERIFY_TOKEN en el servidor para activar la recepción.'}</span></div>
+        <div class="form-actions">${c.status.whatsapp === 'api' ? '<button type="button" class="btn small danger" id="waOff">Desconectar</button>' : ''}<button class="btn primary" type="submit">Guardar WhatsApp</button></div>
+      </form>
+      <form id="emailForm" class="channel">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h3>Email</h3><span class="tag ${c.status.email === 'api' ? 'green' : 'amber'}">${c.status.email === 'api' ? 'Conectado' : 'Modo manual'}</span></div>
+        <p class="muted" style="margin:0;font-size:13px">Envío de emails con Resend (resend.com). Sin conectar, se abre tu programa de correo con el mensaje escrito.</p>
+        <label class="field">Remitente<input name="email_from" value="${esc(c.email_from || '')}" placeholder="Salón <hola@tusalon.es>"></label>
+        <label class="field">Clave de API de Resend<input name="email_api_key" type="password" autocomplete="off" placeholder="${c.email_key_set ? 'Guardada · escribe una nueva para cambiarla' : 're_…'}"></label>
+        <div class="form-actions">${c.status.email === 'api' ? '<button type="button" class="btn small danger" id="emOff">Desconectar</button>' : ''}<button class="btn primary" type="submit">Guardar email</button></div>
+      </form>
+    </div>`;
+  const save = async (body) => {
+    try { await api('/api/channels', { method: 'PUT', body: { wa_number: c.wa_number, wa_phone_number_id: c.wa_phone_number_id, email_from: c.email_from, ...body } }); toast('Canales guardados'); renderChannels(box); }
+    catch (err) { toast(err.message, true); }
+  };
+  $('#waForm').onsubmit = (e) => { e.preventDefault(); const f = e.target; save({ wa_number: f.wa_number.value, wa_phone_number_id: f.wa_phone_number_id.value, wa_token: f.wa_token.value }); };
+  $('#emailForm').onsubmit = (e) => { e.preventDefault(); const f = e.target; save({ email_from: f.email_from.value, email_api_key: f.email_api_key.value }); };
+  const waOff = $('#waOff');
+  if (waOff) waOff.onclick = () => save({ clear_wa: true });
+  const emOff = $('#emOff');
+  if (emOff) emOff.onclick = () => save({ clear_email: true });
+}
+
+/* Alta de un salón (opcionalmente desde una solicitud de prueba). */
+function salonForm(lead = null) {
+  openForm({
+    title: lead ? `Dar de alta: ${lead.salon_name || lead.name}` : 'Dar de alta un salón',
     intro: 'Se crea el salón y el acceso del dueño. Envíale su email y contraseña: podrá cambiarla en Ajustes.',
     fields: [
-      { name: 'name', label: 'Nombre del salón', required: true },
-      { name: 'city', label: 'Ciudad' },
-      { name: 'plan', label: 'Plan', value: 'Base' },
-      { name: 'monthly_fee', label: 'Cuota mensual (€)', type: 'money', value: '49' },
-      { name: 'owner_name', label: 'Nombre del dueño' },
-      { name: 'owner_email', label: 'Email del dueño', type: 'email', required: true, autocomplete: 'off' },
-      { name: 'owner_password', label: 'Contraseña inicial', type: 'text', required: true, hint: 'Mínimo 8 caracteres', autocomplete: 'off' }
+      { name: 'name', label: 'Nombre del salón', required: true, value: lead?.salon_name || '' },
+      { name: 'city', label: 'Ciudad', value: lead?.city || '' },
+      { name: 'plan', label: 'Plan', value: lead ? 'Prueba' : 'Base' },
+      { name: 'monthly_fee', label: 'Cuota mensual (€)', type: 'money', value: lead ? '0' : '49', hint: lead ? 'Durante la prueba, 0 €' : '' },
+      { name: 'owner_name', label: 'Nombre del dueño', value: lead?.name || '' },
+      { name: 'owner_email', label: 'Email del dueño', type: 'email', required: true, autocomplete: 'off', value: lead?.email || '' },
+      { name: 'owner_password', label: 'Contraseña inicial', type: 'text', required: true, hint: 'Mínimo 8 caracteres', autocomplete: 'off', value: lead ? `Prueba-${Math.random().toString(36).slice(2, 8)}` : '' }
     ],
     submit: 'Crear salón',
     onSubmit: async (v) => {
-      const r = await api('/api/admin/salons', { method: 'POST', body: v });
+      const r = await api('/api/admin/salons', { method: 'POST', body: { ...v, lead_id: lead?.id } });
       S.me = null;
-      toast('Salón creado');
+      toast(`Salón creado. Acceso: ${v.owner_email} · ${v.owner_password}`);
       S.salonId = r.id;
-      render();
+      store.set('salonId', r.id);
+      if (location.hash === '#/panel') render(); else go('#/panel');
     }
   });
-};
+}
+
+const LEAD_STATUS = [['nuevo', 'Nuevo'], ['contactado', 'Contactado'], ['en prueba', 'En prueba'], ['cliente', 'Cliente'], ['descartado', 'Descartado']];
+async function renderLeads(box) {
+  const { leads } = await api('/api/admin/leads');
+  const fresh = leads.filter((l) => l.status === 'nuevo').length;
+  box.innerHTML = `
+    <div class="card-head"><h2>Solicitudes de prueba${fresh ? ` <span class="tag solid">${fresh} nuevas</span>` : ''}</h2><span class="muted">Llegan desde la web comercial</span></div>
+    ${leads.length ? `<div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Contacto</th><th>Salón</th><th>Equipo</th><th>Mensaje</th><th>Estado</th><th></th></tr></thead>
+    <tbody>${leads.map((l) => `<tr>
+      <td class="muted" style="white-space:nowrap">${fdate(l.created_at.slice(0, 10))}</td>
+      <td><b>${esc(l.name)}</b><br><small class="muted">${esc([l.email, l.phone].filter(Boolean).join(' · '))}</small></td>
+      <td>${esc(l.salon_name || '—')}<br><small class="muted">${esc(l.city || '')}</small></td>
+      <td>${esc(l.team_size || '—')}</td>
+      <td style="min-width:200px;font-size:13px">${esc(l.message || '')}</td>
+      <td><select class="input small-select" data-lead="${l.id}" aria-label="Estado de ${esc(l.name)}">${LEAD_STATUS.map(([v, t]) => `<option value="${v}" ${l.status === v ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+      <td class="r">${l.status === 'nuevo' || l.status === 'contactado' ? `<button type="button" class="btn small primary" data-onboard="${l.id}">Dar de alta</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="empty">Aún no hay solicitudes. Comparte tu web comercial para recibirlas aquí.</div>'}`;
+  $$('[data-lead]', box).forEach((sel) => (sel.onchange = async () => { await api(`/api/admin/leads/${sel.dataset.lead}`, { method: 'PUT', body: { status: sel.value } }); toast('Solicitud actualizada'); }));
+  $$('[data-onboard]', box).forEach((b) => (b.onclick = () => salonForm(leads.find((l) => String(l.id) === b.dataset.onboard))));
+}
 
 render();

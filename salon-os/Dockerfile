@@ -1,6 +1,8 @@
 FROM node:22-alpine
 WORKDIR /app
 COPY package.json ./
+# Instala el SDK de Claude (opcional: solo se usa si hay ANTHROPIC_API_KEY).
+RUN npm install --omit=dev --no-audit --no-fund
 COPY server.js ./
 COPY src ./src
 COPY public ./public

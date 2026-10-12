@@ -143,6 +143,79 @@ CREATE INDEX IF NOT EXISTS idx_clients_salon ON clients (salon_id);
 CREATE INDEX IF NOT EXISTS idx_hours_salon_date ON work_hours (salon_id, date);
 CREATE INDEX IF NOT EXISTS idx_orders_salon_date ON purchase_orders (salon_id, date);
 CREATE INDEX IF NOT EXISTS idx_cash_salon_date ON cash_movements (salon_id, date);
+
+-- Comunicación con clientes: una conversación por cliente y canal.
+CREATE TABLE IF NOT EXISTS conversations (
+  id INTEGER PRIMARY KEY,
+  salon_id INTEGER NOT NULL REFERENCES salons(id),
+  client_id INTEGER REFERENCES clients(id),
+  channel TEXT NOT NULL CHECK (channel IN ('whatsapp', 'email', 'sms', 'instagram', 'web')),
+  contact TEXT NOT NULL,
+  contact_name TEXT DEFAULT '',
+  status TEXT DEFAULT 'abierta' CHECK (status IN ('abierta', 'pendiente', 'cerrada')),
+  assigned_to INTEGER REFERENCES employees(id),
+  unread INTEGER DEFAULT 0,
+  last_message_at TEXT,
+  last_inbound_at TEXT,
+  last_preview TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE (salon_id, channel, contact)
+);
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY,
+  conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  salon_id INTEGER NOT NULL REFERENCES salons(id),
+  direction TEXT NOT NULL CHECK (direction IN ('in', 'out')),
+  body TEXT NOT NULL,
+  status TEXT DEFAULT 'enviado',
+  external_id TEXT,
+  template TEXT,
+  author TEXT DEFAULT '',
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (salon_id, external_id)
+);
+CREATE TABLE IF NOT EXISTS message_templates (
+  id INTEGER PRIMARY KEY,
+  salon_id INTEGER NOT NULL REFERENCES salons(id),
+  kind TEXT NOT NULL,
+  name TEXT NOT NULL,
+  body TEXT NOT NULL
+);
+-- Lo que se va sabiendo de cada cliente por sus conversaciones.
+CREATE TABLE IF NOT EXISTS client_insights (
+  client_id INTEGER PRIMARY KEY REFERENCES clients(id) ON DELETE CASCADE,
+  salon_id INTEGER NOT NULL REFERENCES salons(id),
+  data TEXT NOT NULL,
+  source TEXT DEFAULT 'reglas',
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+-- Canales conectados por salón (WhatsApp Business, email).
+CREATE TABLE IF NOT EXISTS salon_channels (
+  salon_id INTEGER PRIMARY KEY REFERENCES salons(id),
+  wa_phone_number_id TEXT DEFAULT '',
+  wa_token TEXT DEFAULT '',
+  wa_number TEXT DEFAULT '',
+  email_api_key TEXT DEFAULT '',
+  email_from TEXT DEFAULT ''
+);
+-- Solicitudes de prueba que llegan desde la web comercial.
+CREATE TABLE IF NOT EXISTS leads (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  salon_name TEXT DEFAULT '',
+  email TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  city TEXT DEFAULT '',
+  team_size TEXT DEFAULT '',
+  message TEXT DEFAULT '',
+  status TEXT DEFAULT 'nuevo' CHECK (status IN ('nuevo', 'contactado', 'en prueba', 'cliente', 'descartado')),
+  notes TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_conv_salon ON conversations (salon_id, last_message_at);
+CREATE INDEX IF NOT EXISTS idx_conv_client ON conversations (client_id);
+CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages (conversation_id, created_at);
 `;
 
 export function openDb(file) {

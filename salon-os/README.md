@@ -88,6 +88,38 @@ node web-demo/build.mjs        # genera web-demo/dist, publicable en cualquier h
 - Botón **Ver panel**, que abre cualquier salón con todos sus datos.
 - Altas de salones y edición de su plan y cuota.
 
+**Comunicación con clientes (Mensajes)**
+
+- Bandeja compartida de conversaciones (WhatsApp, email, SMS) con estados
+  (abierta, pendiente, cerrada), asignación a una persona del equipo y contador
+  de no leídos.
+- **WhatsApp Business conectado** (Cloud API de Meta). Los mensajes al número de
+  empresa entran solos en la bandeja del salón; si el número es nuevo, se crea su
+  ficha. Las respuestas salen por la API. Sin conectar funciona en modo manual:
+  se registra todo y se abre WhatsApp con el texto.
+- **Recordatorios sugeridos** cada día, con el mensaje ya escrito y envío en bloque:
+  - le toca volver;
+  - te echamos de menos;
+  - segunda visita;
+  - gracias por venir.
+- **Plantillas** editables con variables (`{nombre}`, `{salon}`, `{servicio}`,
+  `{dias}`, `{fecha}`).
+- **Lo que sabemos por sus mensajes**, en la ficha de cada cliente: tono
+  emocional, por qué escribe, servicios que le interesan, días y franjas que pide,
+  estilista de confianza, alertas (alergias o quejas) y tiempo de respuesta. Lo
+  calcula un análisis por reglas que funciona sin servicios externos. Con
+  `ANTHROPIC_API_KEY`, el botón «Analizar con IA» añade un resumen con Claude.
+
+**Para empezar a vender**
+
+- Web comercial en `/`, con el formulario de prueba gratuita. Las solicitudes
+  llegan a la consola, en **Solicitudes de prueba**, y desde ahí se da de alta el
+  salón con un clic.
+- **Primeros pasos** en el panel de cada salón nuevo, incluido un menú de
+  servicios típico para cargar.
+- Guía completa de lanzamiento en [`PILOTO.md`](PILOTO.md): despliegue en Render
+  (`render.yaml`), conexión de WhatsApp, email y qué medir en cada piloto.
+
 ## Cómo entran los datos (sin teclear dos veces)
 
 1. **Importación CSV/Excel** (*Conectar TPV / importar*). Casi todos los TPV
@@ -169,6 +201,9 @@ docker run -p 3000:3000 -v salon-data:/data \
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | cuenta del distribuidor que se crea en el primer arranque |
 | `DEMO=1` | si la base está vacía, la llena con datos de ejemplo |
 | `COOKIE_SECURE=1` | cookie de sesión solo por HTTPS (actívalo en producción) |
+| `WA_VERIFY_TOKEN` | token para verificar el webhook de WhatsApp en Meta |
+| `WA_APP_SECRET` | *App secret* de Meta: comprueba la firma de cada aviso de WhatsApp |
+| `ANTHROPIC_API_KEY` | opcional: resumen de clientes con IA (requiere `npm install`) |
 
 Copias de seguridad: basta con copiar el archivo `.db`, por ejemplo con
 `sqlite3 salon-os.db ".backup copia.db"`.

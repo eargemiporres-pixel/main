@@ -1,0 +1,26 @@
+# Despliegue de Salon OS en Render (Blueprint). La app vive en salon-os/.
+services:
+  - type: web
+    name: salon-os
+    runtime: docker
+    rootDir: salon-os
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /api/health
+    disk:
+      name: salon-os-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: WA_VERIFY_TOKEN
+        generateValue: true
+      - key: WA_APP_SECRET
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

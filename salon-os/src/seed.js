@@ -5,6 +5,8 @@
 import { tx } from './db.js';
 import { hashPassword, newApiKey } from './auth.js';
 import { today, addDays, addMonths, monthStart, daysBetween } from './dates.js';
+import { getOrCreateConversation, recordInbound, ensureTemplates, renderTemplate } from './messaging.js';
+import { refreshClientInsights } from './insights.js';
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -228,6 +230,109 @@ export function seedDemo(db, { password = 'demo1234' } = {}) {
       for (const row of db.prepare('SELECT id FROM clients WHERE salon_id = ? ORDER BY id LIMIT 40').all(sid)) {
         if (r() < 0.4) db.prepare('UPDATE clients SET notes = ? WHERE id = ?').run(pick(notes), row.id);
       }
+
+      seedConversations(db, sid, cfg, emps, r);
     });
   });
+}
+
+/* Conversaciones de ejemplo (WhatsApp) para la bandeja de mensajes. Cada guion
+   es [dirección, texto]; {nombre}, {estilista} y {salon} se rellenan. */
+const SCRIPTS = [
+  { who: 'M', open: false, lines: [
+    ['in', 'Hola! Quería pedir cita para hacerme la raíz, ¿tenéis hueco el sábado por la mañana?'],
+    ['out', '¡Hola {nombre}! El sábado a las 10:00 con {estilista} tenemos hueco. ¿Te lo reservo?'],
+    ['in', 'Perfecto, sí porfa. Y de paso me gustaría un tratamiento de hidratación, que lo tengo muy seco'],
+    ['out', 'Hecho: color raíz + hidratación. ¡Nos vemos el sábado!'],
+    ['in', 'Genial, mil gracias']] },
+  { who: 'M', open: false, lines: [
+    ['in', 'Buenas, ¿cuánto cuesta un balayage? Tengo el pelo por debajo de los hombros'],
+    ['out', 'Hola {nombre}, el balayage está desde 95 € según largo y cantidad, con matiz incluido. ¿Te hacemos un diagnóstico sin compromiso?'],
+    ['in', 'Uf, es un poco caro para mí ahora mismo. ¿Tenéis alguna oferta o promo este mes?'],
+    ['out', 'Este mes, si lo combinas con corte, el corte te sale a mitad de precio.'],
+    ['in', 'Vale, me lo pienso y os digo. Gracias']] },
+  { who: 'M', open: true, lines: [
+    ['in', 'Hola! Me caso en junio y quería ver opciones de recogido y prueba de peinado de novia'],
+    ['out', '¡Enhorabuena, {nombre}! Hacemos la prueba unas semanas antes. ¿Te va bien un martes por la tarde?'],
+    ['in', 'Sí, los martes por la tarde salgo a las 17h. ¿Podría ser con {estilista}? Me encanta cómo trabaja'],
+    ['out', 'Claro, te reservamos con {estilista}. Te mandamos propuesta de fechas esta semana.']] },
+  { who: 'M', open: true, unread: true, lines: [
+    ['in', 'Hola, el color que me hicisteis el otro día se me ha ido muy rápido y está como naranja. No me ha gustado nada'],
+    ['out', 'Hola {nombre}, sentimos mucho que no estés contenta. Ven cuando quieras y lo revisamos sin coste.'],
+    ['in', 'Vale, ¿puedo ir el jueves por la tarde? Estoy un poco preocupada porque tengo un evento el sábado']] },
+  { who: 'M', open: false, lines: [
+    ['in', 'Hola, la última vez que me hice el tinte me picaba bastante el cuero cabelludo. ¿Tenéis algo sin amoniaco? Lo tengo muy sensible'],
+    ['out', 'Hola {nombre}, gracias por avisarnos. Tenemos coloración sin amoniaco y hacemos prueba de sensibilidad 48 h antes. Lo apuntamos en tu ficha.'],
+    ['in', 'Genial, así me quedo más tranquila. Gracias!']] },
+  { who: 'M', open: false, lines: [
+    ['in', 'Hola, no voy a poder ir mañana a la cita, ¿podemos cambiarla a la semana que viene?'],
+    ['out', 'Sin problema, {nombre}. ¿Te va bien el miércoles a la misma hora?'],
+    ['in', 'Sí, perfecto. Perdona, se me había olvidado que tenía médico']] },
+  { who: 'M', open: false, lines: [
+    ['in', 'Hola! El champú de color que me recomendasteis me encanta. ¿Me guardáis otro y una mascarilla? Paso a por ellos el viernes'],
+    ['out', '¡Qué bien que te guste! Te los dejamos apartados para el viernes.'],
+    ['in', 'Mil gracias, sois las mejores']] },
+  { who: 'H', open: false, lines: [
+    ['in', 'Buenas, ¿tenéis hueco hoy para corte y barba? Salgo a las 19h del trabajo'],
+    ['out', 'Hola {nombre}, ¿a las 19:15 con {estilista} te va bien?'],
+    ['in', 'Perfecto, allí estaré']] },
+  { who: 'M', open: true, unread: true, template: 'recordatorio', lines: [
+    ['out', 'Hola {nombre}, ¡somos {salon}! Ya han pasado 32 días desde tu último color raíz. ¿Te reservamos cita esta semana? Contesta a este mensaje y te buscamos hueco.'],
+    ['in', 'Hola! Sí, justo lo estaba pensando. ¿El viernes por la tarde puede ser?']] },
+  { who: 'M', open: true, unread: true, lines: [
+    ['in', 'Hola, ¿cuánto dura el alisado de keratina? Tengo mucho frizz con la humedad'],
+    ['out', 'Hola {nombre}, dura unos 3-4 meses según el cuidado y está en 140 €. ¿Te lo explicamos en el salón?'],
+    ['in', 'Vale. ¿El precio incluye el champú sin sulfatos para mantenerlo?']] }
+];
+
+function seedConversations(db, sid, cfg, emps, r) {
+  ensureTemplates(db, sid);
+  const t = today();
+  const stamp = (daysAgo, minutes) => {
+    const d = new Date(`${addDays(t, -daysAgo)}T09:30:00Z`);
+    d.setUTCMinutes(d.getUTCMinutes() + minutes);
+    return d.toISOString().replace('T', ' ').slice(0, 19);
+  };
+  const candidates = db.prepare(`SELECT c.id, c.name, c.phone, c.gender FROM clients c
+      WHERE c.salon_id = ? AND c.phone <> '' AND EXISTS (SELECT 1 FROM tickets tk WHERE tk.client_id = c.id AND tk.date >= ?)
+      ORDER BY c.id`).all(sid, addDays(t, -60));
+  const used = new Set();
+  const pickClient = (g) => {
+    const pool = candidates.filter((c) => !used.has(c.id) && (cfg.barber || c.gender === g));
+    if (!pool.length) return null;
+    const c = pool[Math.floor(r() * pool.length)];
+    used.add(c.id);
+    return c;
+  };
+  const insOut = db.prepare("INSERT INTO messages (conversation_id, salon_id, direction, body, status, template, author, created_at) VALUES (?, ?, 'out', ?, 'entregado', ?, ?, ?)");
+  const scripts = cfg.barber ? SCRIPTS.filter((s) => s.who === 'H').concat(SCRIPTS.filter((s) => s.who === 'H')) : SCRIPTS;
+  scripts.forEach((script, i) => {
+    const c = pickClient(script.who);
+    if (!c) return;
+    const emp = emps[Math.floor(r() * emps.length)];
+    const stylist = db.prepare('SELECT name FROM employees WHERE id = ?').get(emp.id).name.split(' ')[0];
+    const vars = { nombre: c.name.split(' ')[0], estilista: stylist, salon: cfg.name };
+    const conv = getOrCreateConversation(db, sid, { channel: 'whatsapp', contact: c.phone, name: c.name, clientId: c.id, createClient: false });
+    const daysAgo = script.unread ? Math.floor(r() * 2) : 2 + Math.floor(r() * 18);
+    let minutes = Math.floor(r() * 400);
+    let last = null;
+    for (const [dir, text] of script.lines) {
+      const body = renderTemplate(text, vars);
+      const at = stamp(daysAgo, minutes);
+      if (dir === 'in') recordInbound(db, sid, { channel: 'whatsapp', from: c.phone, name: c.name, body, externalId: `demo-${sid}-${i}-${minutes}`, at });
+      else insOut.run(conv.id, sid, body, script.template && last === null ? script.template : null, 'Recepción', at);
+      last = { body, at, dir };
+      minutes += 4 + Math.floor(r() * 50);
+    }
+    db.prepare('UPDATE conversations SET last_message_at = ?, last_preview = ?, unread = ?, status = ? WHERE id = ?')
+      .run(last.at, last.body.slice(0, 140), script.unread && last.dir === 'in' ? 1 : 0, script.open ? 'abierta' : 'cerrada', conv.id);
+    refreshClientInsights(db, sid, c.id);
+  });
+  // Un número nuevo que escribe por primera vez: se crea su ficha sola.
+  if (!cfg.barber) {
+    recordInbound(db, sid, {
+      channel: 'whatsapp', from: `6${String(Math.floor(r() * 1e8)).padStart(8, '0')}`, name: 'Patricia Romero',
+      body: 'Hola, me ha pasado vuestro contacto una amiga. ¿Hacéis mechas? ¿Qué precio tenéis?', externalId: `demo-${sid}-new`, at: stamp(0, 30)
+    });
+  }
 }

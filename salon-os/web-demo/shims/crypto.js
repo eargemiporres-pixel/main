@@ -38,3 +38,8 @@ export function scryptSync(password, salt, len) {
 export function timingSafeEqual(a, b) {
   return a.toString('hex') === b.toString('hex');
 }
+
+/* El webhook de WhatsApp no se usa en la demo del navegador. */
+export function createHmac() {
+  throw new Error('createHmac no está disponible en la demo del navegador');
+}
