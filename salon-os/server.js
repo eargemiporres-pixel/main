@@ -1,4 +1,4 @@
-/* Arranque de MetricSalon.
+/* Arranque de SalonPro.
    Variables de entorno:
      PORT            puerto HTTP (por defecto 3000)
      DB_PATH         archivo SQLite (por defecto ./data/salon-os.db)
@@ -33,13 +33,13 @@ const port = Number(process.env.PORT) || 3000;
 const server = createServer(createApp(db));
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`\nEl puerto ${port} ya está en uso: seguramente MetricSalon ya está abierto en otra ventana.`);
+    console.error(`\nEl puerto ${port} ya está en uso: seguramente SalonPro ya está abierto en otra ventana.`);
     console.error(`Abre http://localhost:${port} o cierra la otra ventana y vuelve a intentarlo.\n`);
     process.exit(1);
   }
   throw err;
 });
-server.listen(port, () => console.log(`MetricSalon escuchando en http://localhost:${port}`));
+server.listen(port, () => console.log(`SalonPro escuchando en http://localhost:${port}`));
 
 // Copia cada 15 minutos las citas de los calendarios externos (iCal) conectados.
 setInterval(() => { syncAllFeeds(db).catch((err) => console.error('Sincronización de calendarios:', err.message)); }, 15 * 60000).unref();

@@ -1,4 +1,4 @@
-/* Envío de la solicitud de prueba. En el servidor de MetricSalon va a /api/leads
+/* Envío de la solicitud de prueba. En el servidor de SalonPro va a /api/leads
    y aparece en la consola del distribuidor. Una página que aloje esta web en
    otro sitio puede definir window.salonSubmitLead(datos) para guardarla. */
 (function () {

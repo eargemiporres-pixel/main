@@ -1,5 +1,5 @@
 @echo off
-rem Doble clic para arrancar la demo de MetricSalon en Windows.
+rem Doble clic para arrancar la demo de SalonPro en Windows.
 cd /d "%~dp0"
 where node >nul 2>nul
 if errorlevel 1 (

@@ -1,4 +1,4 @@
-/* Demo en el navegador: ejecuta el mismo servidor de MetricSalon dentro de la
+/* Demo en el navegador: ejecuta el mismo servidor de SalonPro dentro de la
    página. La base de datos SQLite vive en memoria (sql.js), se llena con los
    datos de ejemplo y las llamadas a /api/ se atienden aquí mismo sin red.
    Al recargar la página la demo empieza de cero. */

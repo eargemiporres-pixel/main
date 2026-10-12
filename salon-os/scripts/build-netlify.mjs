@@ -1,6 +1,6 @@
 /* Prepara la web comercial para Netlify (o cualquier hosting estático):
    - index.html: la landing, con el formulario conectado a Netlify Forms.
-   - demo/: la demo de MetricSalon que funciona solo en el navegador.
+   - demo/: la demo de SalonPro que funciona solo en el navegador.
    Uso: node scripts/build-netlify.mjs [carpeta-destino] [--app-url=https://app.tumarca.es]
    Sin --app-url se quitan los enlaces «Entrar» (aún no hay aplicación publicada). */
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

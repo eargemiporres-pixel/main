@@ -1,6 +1,6 @@
-# MetricSalon · Guía para lanzar los primeros pilotos
+# SalonPro · Guía para lanzar los primeros pilotos
 
-Pasos para poner MetricSalon en internet, conectar el WhatsApp de un salón y
+Pasos para poner SalonPro en internet, conectar el WhatsApp de un salón y
 llevar una prueba de 30 días de principio a fin.
 
 ## 0. Web comercial gratis en Netlify (antes de tener la aplicación publicada)
@@ -73,7 +73,7 @@ copia diaria (Render permite instantáneas del disco).
 
 ## 3. Conectar el WhatsApp de empresa de un salón
 
-MetricSalon usa la API oficial de WhatsApp Business (Cloud API de Meta). Una sola
+SalonPro usa la API oficial de WhatsApp Business (Cloud API de Meta). Una sola
 app de Meta, la tuya como proveedor, sirve para todos tus salones.
 
 **Una vez, en tu app de Meta**
@@ -83,14 +83,14 @@ app de Meta, la tuya como proveedor, sirve para todos tus salones.
    - Token de verificación: el valor de `WA_VERIFY_TOKEN` (en Render, pestaña *Environment*).
    - Suscríbete al campo **messages**.
 3. Copia el *App secret* (Configuración → Básica) en la variable `WA_APP_SECRET`.
-   Así MetricSalon rechaza cualquier aviso que no venga de Meta.
+   Así SalonPro rechaza cualquier aviso que no venga de Meta.
 
 **Por cada salón**
 1. Añade su número de empresa en *WhatsApp → Configuración de la API*. El número no
    puede estar a la vez en la app normal de WhatsApp Business: Meta lo migra.
 2. Copia el **Phone number ID** y genera un **token permanente** con un usuario de
    sistema que tenga el permiso `whatsapp_business_messaging`.
-3. En MetricSalon, entra al salón → **Ajustes → Canales de comunicación → WhatsApp
+3. En SalonPro, entra al salón → **Ajustes → Canales de comunicación → WhatsApp
    Business**, pega los dos datos y guarda. El estado pasa a *Conectado*.
 
 Desde ese momento:
@@ -102,12 +102,12 @@ Desde ese momento:
 
 **Regla de las 24 horas de WhatsApp.** Puedes responder libremente durante las 24 h
 siguientes al último mensaje del cliente. Fuera de esa ventana, Meta solo permite
-**plantillas aprobadas**. Si un envío falla por eso, MetricSalon te da un enlace para
+**plantillas aprobadas**. Si un envío falla por eso, SalonPro te da un enlace para
 mandarlo desde el móvil. Para recordatorios automáticos a gran escala, da de alta
 en Meta las plantillas de *Mensajes → Plantillas*.
 
 **Sin conectar (modo manual)** todo funciona igual, salvo el envío: cada mensaje
-queda registrado y MetricSalon abre WhatsApp con el texto escrito para enviarlo.
+queda registrado y SalonPro abre WhatsApp con el texto escrito para enviarlo.
 
 ## 4. Email (opcional)
 

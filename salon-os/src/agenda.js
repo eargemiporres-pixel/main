@@ -313,7 +313,7 @@ export function agendaIcs(db, salon) {
   const t = today();
   const rows = listAppointments(db, salon.id, addDays(t, -7), addDays(t, 56)).filter((a) => a.status !== 'cancelada');
   const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MetricSalon//Agenda//ES', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${icsEscape(salon.name)}`, `X-WR-TIMEZONE:${TZ}`];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SalonPro//Agenda//ES', 'CALSCALE:GREGORIAN', `X-WR-CALNAME:${icsEscape(salon.name)}`, `X-WR-TIMEZONE:${TZ}`];
   for (const a of rows) {
     lines.push('BEGIN:VEVENT', `UID:salonos-${salon.id}-${a.id}`, `DTSTAMP:${stamp}`,
       `DTSTART;TZID=${TZ}:${icsLocal(a.date, a.start)}`, `DTEND;TZID=${TZ}:${icsLocal(a.date, a.end)}`,
@@ -328,7 +328,7 @@ export function agendaIcs(db, salon) {
 /* Una cita como archivo .ics para que la clienta la guarde en su calendario. */
 export function appointmentIcs(salon, a) {
   const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
-  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MetricSalon//Cita//ES', 'BEGIN:VEVENT', `UID:salonos-cita-${a.token}`, `DTSTAMP:${stamp}`,
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SalonPro//Cita//ES', 'BEGIN:VEVENT', `UID:salonos-cita-${a.token}`, `DTSTAMP:${stamp}`,
     `DTSTART;TZID=${TZ}:${icsLocal(a.date, a.start)}`, `DTEND;TZID=${TZ}:${icsLocal(a.date, a.end)}`,
     `SUMMARY:${icsEscape(`${a.services.map((s) => s.name).join(' + ')} en ${salon.name}`)}`,
     `LOCATION:${icsEscape(`${salon.name}${salon.city ? `, ${salon.city}` : ''}`)}`, 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
