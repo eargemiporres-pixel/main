@@ -11,7 +11,7 @@ import { listClients, clientDetail } from './clients.js';
 import { importTickets, importHours, normGender, normTime } from './importer.js';
 import { csvToTickets } from './csv.js';
 import { networkOverview, purchaseSignal } from './network.js';
-import { today, currentMonth, isMonth, isDate, addMonths, monthStart, periodRange } from './dates.js';
+import { today, currentMonth, isMonth, isDate, addMonths, monthStart, periodRange, addDays as addDaysIso } from './dates.js';
 import {
   listConversations, conversationDetail, getOrCreateConversation, sendMessage, recordInbound, reminderSuggestions,
   ensureTemplates, channelsFor, channelStatus, parseWhatsAppWebhook, phoneKey
@@ -20,6 +20,10 @@ import { getInsights, refreshClientInsights } from './insights.js';
 import { aiAvailable, aiClientSummary } from './ai.js';
 import { onboardingSteps, loadStarterCatalog } from './onboarding.js';
 import { serviceTimes, reportData, reportXlsx } from './servicetimes.js';
+import {
+  scheduleOf, validateSchedule, ensureBookingSetup, availableSlots, createAppointment, rescheduleAppointment, getAppointment,
+  listAppointments, upsertExternalAppointments, syncFeed, agendaIcs, appointmentIcs, nowLocal, toMin
+} from './agenda.js';
 
 const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.csv': 'text/csv; charset=utf-8' };
@@ -70,7 +74,8 @@ export function createApp(db) {
   const routes = [];
   const on = (method, path, auth, handler) => {
     const keys = [];
-    const re = new RegExp(`^${path.replace(/:(\w+)/g, (_, k) => { keys.push(k); return '(\\d+)'; })}$`);
+    const PARAM = { slug: '([a-z0-9-]{1,80})', token: '([a-f0-9]{16,64})' };
+    const re = new RegExp(`^${path.replace(/\./g, '\\.').replace(/:(\w+)/g, (_, k) => { keys.push(k); return PARAM[k] || '(\\d+)'; })}$`);
     routes.push({ method, re, keys, auth, handler });
   };
 
@@ -142,7 +147,8 @@ export function createApp(db) {
     const d = clientDetail(db, salon.id, Number(ctx.params.id));
     if (!d) throw notFound('Cliente no encontrado');
     const conversations = db.prepare('SELECT id, channel, status, last_message_at, last_preview, unread FROM conversations WHERE client_id = ? ORDER BY last_message_at DESC').all(d.client.id);
-    return { ...d, insights: getInsights(db, d.client.id), conversations };
+    const appointments = listAppointments(db, salon.id, addDaysIso(nowLocal().date, -1), addDaysIso(nowLocal().date, 120), { clientId: d.client.id }).filter((x) => x.status !== 'cancelada');
+    return { ...d, insights: getInsights(db, d.client.id), conversations, appointments };
   });
   const clientFields = (b) => {
     const name = str(b.name, 120);
@@ -233,6 +239,8 @@ export function createApp(db) {
       const t = db.prepare(`INSERT INTO tickets (salon_id, client_id, employee_id, date, time_start, time_end, method, total, source, time_source)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?)`).run(salon.id, clientId, employee?.id ?? null, date, ts, te, method, total, timeSource);
       if (visit) db.prepare('DELETE FROM open_visits WHERE id = ?').run(visit.id);
+      const apptId = visit?.appointment_id || (b.appointment_id ? owned('appointments', Number(b.appointment_id), salon.id).id : null);
+      if (apptId) db.prepare("UPDATE appointments SET status = 'completada', ticket_id = ? WHERE id = ?").run(Number(t.lastInsertRowid), apptId);
       const tid = Number(t.lastInsertRowid);
       const ins = db.prepare('INSERT INTO ticket_lines (ticket_id, kind, item_id, name, qty, unit_price, total, employee_id, duration_min) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
       for (const l of lines) ins.run(tid, l.kind, l.item.id, l.item.name, l.qty, l.price, l.total, l.emp, l.duration);
@@ -447,6 +455,216 @@ export function createApp(db) {
     return { saved, errors };
   });
 
+
+  /* --- Agenda --- */
+  const parseServiceIds = (v) => String(v || '').split(',').map(Number).filter(Boolean);
+  const durationOf = (salonId, ids) => ids.reduce((sum, id) => sum + (db.prepare('SELECT duration_min FROM services WHERE id = ? AND salon_id = ?').get(id, salonId)?.duration_min || 0), 0);
+  const agendaError = (fn) => { try { return fn(); } catch (err) { if (err instanceof HttpError) throw err; throw bad(err.message); } };
+
+  on('GET', '/api/agenda', 'user', (ctx) => {
+    const salon = ensureBookingSetup(db, salonFor(ctx));
+    const from = isDate(ctx.query.get('from')) ? ctx.query.get('from') : nowLocal().date;
+    const days = Math.max(1, Math.min(31, Number(ctx.query.get('days')) || 7));
+    const to = addDaysIso(from, days);
+    return {
+      from, to, today: nowLocal().date,
+      schedule: scheduleOf(salon),
+      employees: db.prepare('SELECT id, name, role FROM employees WHERE salon_id = ? AND active = 1 ORDER BY id').all(salon.id),
+      appointments: listAppointments(db, salon.id, from, to),
+      bookingSlug: salon.booking_slug
+    };
+  });
+  on('GET', '/api/agenda/slots', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    const ids = parseServiceIds(ctx.query.get('services'));
+    const duration = durationOf(salon.id, ids);
+    if (!duration) throw bad('Elige al menos un servicio');
+    return { duration, slots: availableSlots(db, salon, { date: ctx.query.get('date'), duration, employeeId: Number(ctx.query.get('employee')) || null, ignoreId: Number(ctx.query.get('ignore')) || null }) };
+  });
+  on('POST', '/api/appointments', 'user', (ctx) => agendaError(() => {
+    const salon = salonFor(ctx);
+    const b = ctx.body;
+    let client = null;
+    if (b.client_id) client = owned('clients', Number(b.client_id), salon.id);
+    else if (b.new_client && str(b.new_client.name)) {
+      const id = Number(db.prepare('INSERT INTO clients (salon_id, name, phone, gender, created_at) VALUES (?, ?, ?, ?, ?)')
+        .run(salon.id, str(b.new_client.name, 120), str(b.new_client.phone, 40), normGender(b.new_client.gender), today()).lastInsertRowid);
+      client = { id, name: str(b.new_client.name, 120), phone: str(b.new_client.phone, 40) };
+    }
+    if (b.employee_id) owned('employees', Number(b.employee_id), salon.id);
+    return createAppointment(db, salon, {
+      clientId: client?.id ?? null, clientName: client?.name || str(b.client_name, 120), clientPhone: client?.phone || '',
+      employeeId: Number(b.employee_id) || null, date: str(b.date, 10), start: str(b.start, 5),
+      serviceIds: b.service_ids, notes: str(b.notes, 500), status: b.status === 'pendiente' ? 'pendiente' : 'confirmada', source: 'salon'
+    });
+  }));
+  on('GET', '/api/appointments/:id', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    const a = getAppointment(db, salon.id, Number(ctx.params.id));
+    if (!a) throw notFound('Cita no encontrada');
+    return a;
+  });
+  on('PUT', '/api/appointments/:id', 'user', (ctx) => agendaError(() => {
+    const salon = salonFor(ctx);
+    const a = getAppointment(db, salon.id, Number(ctx.params.id));
+    if (!a) throw notFound('Cita no encontrada');
+    const b = ctx.body;
+    if (b.date || b.start) {
+      if (b.employee_id) owned('employees', Number(b.employee_id), salon.id);
+      return rescheduleAppointment(db, salon, a.id, { date: str(b.date, 10) || a.date, start: str(b.start, 5) || a.start, employeeId: Number(b.employee_id) || null });
+    }
+    const statuses = ['pendiente', 'confirmada', 'en_curso', 'completada', 'cancelada', 'no_presentada'];
+    const status = statuses.includes(b.status) ? b.status : a.status;
+    db.prepare('UPDATE appointments SET status = ?, notes = ? WHERE id = ?').run(status, b.notes !== undefined ? str(b.notes, 500) : a.notes, a.id);
+    return getAppointment(db, salon.id, a.id);
+  }));
+  /* Empieza el servicio de una cita: arranca el cronómetro del cobro. */
+  on('POST', '/api/appointments/:id/start', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    const a = getAppointment(db, salon.id, Number(ctx.params.id));
+    if (!a) throw notFound('Cita no encontrada');
+    const lines = a.services.filter((s) => s.service_id).map((s) => ({ kind: 'service', item_id: s.service_id, name: s.name, qty: 1, price: s.price, duration: s.duration_min }));
+    if (!lines.length) throw bad('La cita no tiene servicios del menú');
+    const started = new Date().toISOString();
+    const r = db.prepare('INSERT INTO open_visits (salon_id, client_id, client_name, employee_id, lines, started_at, appointment_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(salon.id, a.client_id, a.client_name || '', a.employee_id, JSON.stringify(lines), started, a.id);
+    db.prepare("UPDATE appointments SET status = 'en_curso' WHERE id = ?").run(a.id);
+    return { visit_id: Number(r.lastInsertRowid), started_at: started };
+  });
+
+  on('GET', '/api/booking-settings', 'user', (ctx) => {
+    const salon = ensureBookingSetup(db, salonFor(ctx));
+    return {
+      schedule: scheduleOf(salon), booking_slug: salon.booking_slug, booking_enabled: !!salon.booking_enabled, booking_auto_confirm: !!salon.booking_auto_confirm,
+      calendar_token: salon.calendar_token, api_key_set: Boolean(salon.api_key),
+      feeds: db.prepare('SELECT f.*, e.name AS employee_name FROM calendar_feeds f LEFT JOIN employees e ON e.id = f.employee_id WHERE f.salon_id = ? ORDER BY f.id').all(salon.id)
+    };
+  });
+  on('PUT', '/api/booking-settings', 'user', (ctx) => agendaError(() => {
+    const salon = ensureBookingSetup(db, salonFor(ctx));
+    const b = ctx.body;
+    const schedule = b.schedule ? JSON.stringify(validateSchedule(b.schedule)) : salon.schedule;
+    let slug = b.booking_slug !== undefined ? str(b.booking_slug, 60).toLowerCase() : salon.booking_slug;
+    if (!/^[a-z0-9](?:[a-z0-9-]{1,58}[a-z0-9])?$/.test(slug)) throw bad('La dirección solo puede tener letras, números y guiones');
+    if (db.prepare('SELECT 1 FROM salons WHERE booking_slug = ? AND id <> ?').get(slug, salon.id)) throw bad('Esa dirección ya la usa otro salón');
+    db.prepare('UPDATE salons SET schedule = ?, booking_slug = ?, booking_enabled = ?, booking_auto_confirm = ? WHERE id = ?')
+      .run(schedule, slug, b.booking_enabled === undefined ? salon.booking_enabled : b.booking_enabled ? 1 : 0, b.booking_auto_confirm === undefined ? salon.booking_auto_confirm : b.booking_auto_confirm ? 1 : 0, salon.id);
+    return { ok: true };
+  }));
+  on('POST', '/api/calendar-feeds', 'user', async (ctx) => {
+    const salon = salonFor(ctx);
+    const url = str(ctx.body.url, 1000);
+    if (!/^(https?|webcal):\/\//i.test(url)) throw bad('Pega la dirección iCal completa (empieza por https:// o webcal://)');
+    if (ctx.body.employee_id) owned('employees', Number(ctx.body.employee_id), salon.id);
+    const r = db.prepare('INSERT INTO calendar_feeds (salon_id, name, url, employee_id) VALUES (?, ?, ?, ?)').run(salon.id, str(ctx.body.name, 80), url, Number(ctx.body.employee_id) || null);
+    const feed = db.prepare('SELECT * FROM calendar_feeds WHERE id = ?').get(Number(r.lastInsertRowid));
+    return { id: feed.id, sync: await syncFeed(db, salon, feed) };
+  });
+  on('POST', '/api/calendar-feeds/:id/sync', 'user', async (ctx) => {
+    const salon = salonFor(ctx);
+    return syncFeed(db, salon, owned('calendar_feeds', Number(ctx.params.id), salon.id));
+  });
+  on('DELETE', '/api/calendar-feeds/:id', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    owned('calendar_feeds', Number(ctx.params.id), salon.id);
+    db.prepare('DELETE FROM calendar_feeds WHERE id = ?').run(Number(ctx.params.id));
+    return { ok: true };
+  });
+  /* Citas desde Booksy, Treatwell, Fresha… vía Make/Zapier o integración directa. */
+  on('POST', '/api/ingest/appointments', 'apikey', ({ salon, body }) => {
+    if (!Array.isArray(body.appointments)) throw bad('Envía { "appointments": [...] }');
+    return upsertExternalAppointments(db, salon, body.appointments.slice(0, 2000), 'api');
+  });
+
+  /* --- Reservas online (públicas, sin sesión) --- */
+  const bookingSalon = (slug) => {
+    const s = db.prepare('SELECT * FROM salons WHERE booking_slug = ? AND active = 1').get(slug);
+    if (!s || !s.booking_enabled) throw notFound('Este salón no tiene las reservas online activadas');
+    return s;
+  };
+  const publicAppt = (a, salon) => ({
+    token: a.token, status: a.status, date: a.date, start: a.start, end: a.end, employee: a.employee_name ? a.employee_name.split(' ')[0] : null,
+    services: a.services.map((x) => ({ name: x.name, duration: x.duration_min, price: x.price })), client_name: a.client_name,
+    salon: { name: salon.name, city: salon.city, slug: salon.booking_slug }
+  });
+  const bookingHits = new Map();
+  on('GET', '/api/public/booking/:slug', 'none', ({ params }) => {
+    const s = bookingSalon(params.slug);
+    const n = nowLocal();
+    return {
+      salon: { name: s.name, city: s.city }, schedule: scheduleOf(s), today: n.date,
+      services: db.prepare('SELECT id, name, category, gender, price, duration_min FROM services WHERE salon_id = ? AND active = 1 ORDER BY category, name').all(s.id),
+      employees: db.prepare('SELECT id, name, role FROM employees WHERE salon_id = ? AND active = 1 ORDER BY id').all(s.id).map((e) => ({ id: e.id, name: e.name.split(' ')[0], role: e.role }))
+    };
+  });
+  on('GET', '/api/public/booking/:slug/slots', 'none', ({ params, query }) => {
+    const s = bookingSalon(params.slug);
+    const ids = parseServiceIds(query.get('services'));
+    const duration = durationOf(s.id, ids);
+    if (!duration) throw bad('Elige al menos un servicio');
+    return { slots: availableSlots(db, s, { date: query.get('date'), duration, employeeId: Number(query.get('employee')) || null, forPublic: true }).map((x) => x.time) };
+  });
+  on('POST', '/api/public/booking/:slug', 'none', ({ params, body, ip }) => agendaError(() => {
+    const s = bookingSalon(params.slug);
+    if (body.website) return { ok: true };
+    const hits = (bookingHits.get(ip) || []).filter((t) => Date.now() - t < 3600000);
+    if (hits.length >= 8) throw new HttpError(429, 'Has hecho varias reservas seguidas. Inténtalo más tarde o llama al salón.');
+    const name = str(body.name, 120);
+    const phone = str(body.phone, 40);
+    if (!name) throw bad('Escribe tu nombre');
+    if (phone.replace(/\D/g, '').length < 9) throw bad('Escribe un teléfono válido para confirmarte la cita');
+    if (!body.consent) throw bad('Acepta el uso de tus datos para gestionar la cita');
+    const ids = (Array.isArray(body.service_ids) ? body.service_ids : []).map(Number);
+    const duration = durationOf(s.id, ids);
+    const ok = availableSlots(db, s, { date: str(body.date, 10), duration, employeeId: Number(body.employee_id) || null, forPublic: true }).some((x) => x.time === body.start);
+    if (!ok) throw bad('Ese hueco ya no está libre. Elige otra hora.');
+    return tx(db, () => {
+      const key = phoneKey(phone);
+      let client = db.prepare("SELECT id, name, phone FROM clients WHERE salon_id = ? AND phone <> ''").all(s.id).find((c) => phoneKey(c.phone) === key);
+      if (!client) {
+        const id = Number(db.prepare('INSERT INTO clients (salon_id, name, phone, email, notes, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+          .run(s.id, name, phone, str(body.email, 120), 'Creada desde la reserva online', today()).lastInsertRowid);
+        client = { id, name, phone };
+      }
+      const a = createAppointment(db, s, {
+        clientId: client.id, clientName: client.name, clientPhone: client.phone, employeeId: Number(body.employee_id) || null,
+        date: str(body.date, 10), start: str(body.start, 5), serviceIds: ids, notes: str(body.notes, 500),
+        status: s.booking_auto_confirm ? 'confirmada' : 'pendiente', source: 'web'
+      });
+      bookingHits.set(ip, [...hits, Date.now()]);
+      recordInbound(db, s.id, {
+        channel: 'whatsapp', from: phone, name: client.name,
+        body: `Reserva online: ${a.services.map((x) => x.name).join(' + ')} el ${a.date.split('-').reverse().join('/')} a las ${a.start}${a.employee_name ? ` con ${a.employee_name}` : ''}.${a.notes ? ` Nota: ${a.notes}` : ''}`
+      });
+      return publicAppt(a, s);
+    });
+  }));
+  const apptByToken = (tok) => {
+    const row = db.prepare('SELECT id, salon_id FROM appointments WHERE token = ?').get(tok);
+    if (!row) throw notFound('No encontramos esta cita');
+    const salon = salonById(row.salon_id);
+    return { salon, a: getAppointment(db, salon.id, row.id) };
+  };
+  on('GET', '/api/public/appointment/:token', 'none', ({ params }) => { const { salon, a } = apptByToken(params.token); return publicAppt(a, salon); });
+  on('POST', '/api/public/appointment/:token/cancel', 'none', ({ params }) => {
+    const { salon, a } = apptByToken(params.token);
+    const n = nowLocal();
+    if (['cancelada', 'completada', 'no_presentada'].includes(a.status)) throw bad('Esta cita ya no se puede cancelar');
+    if (a.date < n.date || (a.date === n.date && toMin(a.start) <= n.minutes)) throw bad('Esta cita ya ha pasado');
+    db.prepare("UPDATE appointments SET status = 'cancelada' WHERE id = ?").run(a.id);
+    if (a.client_phone) recordInbound(db, salon.id, { channel: 'whatsapp', from: a.client_phone, name: a.client_name, body: `Ha cancelado su cita online del ${a.date.split('-').reverse().join('/')} a las ${a.start}.` });
+    return publicAppt(getAppointment(db, salon.id, a.id), salon);
+  });
+  on('GET', '/api/public/appointment/:token/ics', 'none', ({ params }) => {
+    const { salon, a } = apptByToken(params.token);
+    return { raw: appointmentIcs(salon, a), contentType: 'text/calendar; charset=utf-8', filename: 'cita.ics' };
+  });
+  /* Agenda del salón para suscribirse desde Google Calendar, Apple o Outlook. */
+  on('GET', '/api/public/calendar/:token', 'none', ({ params }) => {
+    const salon = db.prepare('SELECT * FROM salons WHERE calendar_token = ?').get(params.token);
+    if (!salon) throw notFound();
+    return { raw: agendaIcs(db, salon), contentType: 'text/calendar; charset=utf-8' };
+  });
 
   /* --- Tiempos reales de servicio y rentabilidad --- */
   const periodOf = (q) => ({
@@ -750,6 +968,8 @@ export function createApp(db) {
   async function serveStatic(res, pathname) {
     // "/" es la web comercial; la aplicación vive en "/app".
     let rel = pathname === '/' ? 'landing.html' : decodeURIComponent(pathname.replace(/^\/app(\/|$)/, '/').slice(1)) || 'index.html';
+    // Página pública de reservas de cada salón: /reservar/<salón>[/cita/<código>]
+    if (/^\/reservar\/[a-z0-9-]+(\/cita\/[a-f0-9]+)?\/?$/.test(pathname)) rel = 'reservar.html';
     let file = normalize(join(PUBLIC, rel));
     if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
     let data;
@@ -770,8 +990,10 @@ export function createApp(db) {
     const url = new URL(req.url, 'http://localhost');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'");
+    // La página de reservas se puede incrustar en la web del salón; el resto no.
+    const embeddable = url.pathname.startsWith('/reservar/');
+    if (!embeddable) res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors ${embeddable ? '*' : "'none'"}`);
     try {
       if (!url.pathname.startsWith('/api/')) {
         if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'Método no permitido');
@@ -824,7 +1046,7 @@ export function createApp(db) {
         return res.end(out.binary);
       }
       if (out && out.raw !== undefined) {
-        res.writeHead(out.status || 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.writeHead(out.status || 200, { 'Content-Type': out.contentType || 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', ...(out.filename ? { 'Content-Disposition': `attachment; filename="${out.filename}"` } : {}) });
         return res.end(String(out.raw));
       }
       if (out && out.cookie) {

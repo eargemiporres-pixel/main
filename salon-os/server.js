@@ -12,6 +12,7 @@ import { openDb } from './src/db.js';
 import { createApp } from './src/app.js';
 import { seedDemo } from './src/seed.js';
 import { hashPassword } from './src/auth.js';
+import { syncAllFeeds } from './src/agenda.js';
 
 const db = openDb(process.env.DB_PATH || fileURLToPath(new URL('./data/salon-os.db', import.meta.url)));
 
@@ -39,3 +40,6 @@ server.on('error', (err) => {
   throw err;
 });
 server.listen(port, () => console.log(`Salon OS escuchando en http://localhost:${port}`));
+
+// Copia cada 15 minutos las citas de los calendarios externos (iCal) conectados.
+setInterval(() => { syncAllFeeds(db).catch((err) => console.error('Sincronización de calendarios:', err.message)); }, 15 * 60000).unref();

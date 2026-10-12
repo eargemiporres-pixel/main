@@ -42,6 +42,12 @@ copia diaria (Render permite instantáneas del disco).
    - Registrar las horas del mes.
    - Conectar WhatsApp (paso 3) o usar el modo manual.
    - Enviar los primeros recordatorios.
+   - Revisar el **horario** en *Ajustes → Agenda y reservas online* y compartir
+     su **página de reservas** (`/reservar/<salón>`) en WhatsApp, Instagram y
+     Google. Si ya usa Booksy, Treatwell, Fresha o Google Calendar, conectarlo
+     ahí mismo (iCal o API).
+   - Pedir al equipo que pulse **Empezar servicio** al sentar a cada clienta (o
+     desde la cita de la agenda): así se mide el tiempo real.
 4. Durante la prueba, revisa su panel desde tu consola (*Ver panel*).
 5. A los 30 días, haced la sesión de resultados y pasa el salón a *Base* o *Pro*
    desde **Plan**.
@@ -103,7 +109,14 @@ Authorization: Bearer <clave del salón>
 
 Con Make o Zapier se conecta en minutos. La clave está en *Conectar TPV / importar*.
 
-## 6. Qué medir en cada piloto
+## 6. Reporte mensual para cada salón
+
+En la consola, botón **Reporte** del salón (o *Reporte del salón* en el menú):
+elige el mes y pulsa **Descargar Excel**. Ahí tienes equipo, ticket medio por
+empleado, mujer y hombre, precio hora, precios y tiempos reales de cada servicio
+y qué servicios no llegan a 0,85 €/min, con el precio que deberían tener.
+
+## 7. Qué medir en cada piloto
 
 | Indicador | Dónde | Señal de que funciona |
 | --- | --- | --- |
@@ -116,7 +129,7 @@ Con Make o Zapier se conecta en minutos. La clave está en *Conectar TPV / impor
 Pregunta al final: *«¿Pagarías por seguir usándolo? ¿Qué es lo que más te ha servido?»*
 y anota las respuestas en la solicitud (estado *Cliente* o *Descartado*).
 
-## 7. Antes de salones reales: lista legal mínima
+## 8. Antes de salones reales: lista legal mínima
 
 - Contrato de encargado del tratamiento (RGPD) con cada salón.
 - Aviso de privacidad en la web comercial y en el formulario.

@@ -37,6 +37,7 @@ const ICONS = {
   consola: 'M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6',
   mensajes: 'M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z',
   tiempos: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M12 7v5l3 2',
+  agenda: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4M8 14h3',
   reporte: 'M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h6',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3'
 };
@@ -173,7 +174,7 @@ function parseHash() {
 const go = (hash) => { location.hash = hash; };
 
 const SALON_NAV = [
-  ['panel', 'Panel'], ['cobro', 'Nuevo cobro'], ['caja', 'Caja'], ['clientes', 'Clientes'], ['mensajes', 'Mensajes'],
+  ['panel', 'Panel'], ['agenda', 'Agenda'], ['cobro', 'Nuevo cobro'], ['caja', 'Caja'], ['clientes', 'Clientes'], ['mensajes', 'Mensajes'],
   ['equipo', 'Equipo y horas'], ['catalogo', 'Servicios y productos'], ['tiempos', 'Tiempos y rentabilidad'], ['pedidos', 'Pedidos de producto'],
   ['importar', 'Conectar TPV / importar'], ['ajustes', 'Ajustes']
 ];
@@ -521,6 +522,10 @@ VIEWS.clientes = async (main, { id }) => {
         <div class="kpi small"><span class="k">Retail comprado</span><span class="v">${eur(s.retailAmount)}</span><span class="d">${fmt(s.retailUnits)} unidades</span></div>
       </div>
       ${s.nextVisit ? `<div class="notice ${s.nextVisitOverdue ? 'warn' : ''}">Próxima visita estimada: ${fdate(s.nextVisit)}${s.nextVisitOverdue ? ' · ya ha pasado: buen momento para escribirle' : ''}</div>` : ''}
+      <div class="card">
+        <div class="card-head"><h2>Citas</h2><button type="button" class="btn small primary" id="clientAppt">Nueva cita</button></div>
+        ${d.appointments.length ? d.appointments.map((a) => `<div class="kv"><span>${dayLabel(a.date)} · ${a.start} <small>${esc(a.services.map((x) => x.name).join(' + '))}${a.employee_name ? ` · ${esc(a.employee_name)}` : ''}</small></span><span class="tag ${APPT_STATUS[a.status][1]}">${APPT_STATUS[a.status][0]}</span></div>`).join('') : '<div class="muted" style="font-size:14px">No tiene citas próximas.</div>'}
+      </div>
       <div class="card" id="insightsCard">
         <div class="card-head"><h2>Lo que sabemos por sus mensajes</h2>
           <div class="head-actions">
@@ -540,6 +545,7 @@ VIEWS.clientes = async (main, { id }) => {
       <div class="notes"><h3>Notas técnicas</h3><div style="white-space:pre-line;font-size:14px">${c.notes ? esc(c.notes) : '<span class="muted">Sin notas. Usa «Editar» para guardar fórmulas de color, alergias o preferencias.</span>'}</div></div>`;
     $('#editClient').onclick = () => clientForm(c, () => loadDetail(cid));
     $('#writeClient').onclick = () => newMessageDialog(c);
+    $('#clientAppt').onclick = () => appointmentForm({ date: S.me.today, client: c });
     const aiBtn = $('#aiInsights');
     if (aiBtn) aiBtn.onclick = async () => {
       aiBtn.disabled = true;
@@ -587,6 +593,17 @@ VIEWS.cobro = async (main, { query }) => {
   if (pre) {
     try { st.client = (await api(`/api/clients/${pre}`)).client; } catch { /* ignorar */ }
   }
+  // Cobrar una cita de la agenda: servicios, clienta y profesional ya puestos.
+  const citaId = query.get('cita');
+  if (citaId) {
+    try {
+      const a = await api(`/api/appointments/${citaId}`);
+      st.appointment = a;
+      st.lines = a.services.filter((x) => x.service_id).map((x) => ({ kind: 'service', item_id: x.service_id, name: x.name, qty: 1, price: x.price, duration: x.duration_min }));
+      if (a.client_id) st.client = { id: a.client_id, name: a.client_name, phone: a.client_phone };
+      st.employee = a.employee_id || st.employee;
+    } catch { /* ignorar */ }
+  }
   const hm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
   main.innerHTML = `
@@ -602,7 +619,8 @@ VIEWS.cobro = async (main, { query }) => {
     </section>
     <section class="card" aria-label="Ticket">
       <h2>Ticket</h2>
-      <label class="field">Atendido por<select id="emp">${employees.map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>
+      ${st.appointment ? `<div class="notice">Cobrando la cita de las ${esc(st.appointment.start)}</div>` : ''}
+      <label class="field">Atendido por<select id="emp">${employees.map((e) => `<option value="${e.id}" ${String(e.id) === String(st.employee) ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></label>
       <div class="field">Cliente
         <div id="clientBox"></div>
       </div>
@@ -770,6 +788,7 @@ VIEWS.cobro = async (main, { query }) => {
       time_start: v ? hm(new Date(v.started_at)) : $('#tStart').value || null,
       time_end: v ? hm(new Date()) : $('#tEnd').value || null,
       open_visit_id: v?.id || null,
+      appointment_id: !v && st.appointment ? st.appointment.id : null,
       lines: st.lines.map((l) => ({ kind: l.kind, item_id: l.item_id, qty: l.qty, price: l.price }))
     };
     if (st.client) body.client_id = st.client.id;
@@ -781,6 +800,7 @@ VIEWS.cobro = async (main, { query }) => {
       st.client = null;
       st.newClient = null;
       st.openVisit = null;
+      st.appointment = null;
       $('#tStart').value = '';
       $('#tEnd').value = '';
       renderCart();
@@ -1113,7 +1133,9 @@ VIEWS.ajustes = async (main) => {
       <p class="muted" style="font-size:13px;margin:0">Plan: ${esc(s.plan)} · sesión de ${esc(S.me.user.email)}</p>
     </form>
   </section>
+  <section class="card" id="booking"><div class="loading">Cargando agenda…</div></section>
   <section class="card" id="channels"><div class="loading">Cargando canales…</div></section>`;
+  renderBookingSettings($('#booking'));
   renderChannels($('#channels'));
   $('#salonForm').onsubmit = async (e) => {
     e.preventDefault();
@@ -1850,5 +1872,374 @@ VIEWS.reporte = async (main) => {
     catch (err) { toast(err.message, true); }
   };
 };
+
+/* ---------- Agenda ---------- */
+const DAY_NAMES = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const DAY_SHORT = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const APPT_STATUS = { pendiente: ['Pendiente', 'amber'], confirmada: ['Confirmada', 'green'], en_curso: ['En curso', 'plum'], completada: ['Completada', ''], cancelada: ['Cancelada', 'red'], no_presentada: ['No vino', 'red'] };
+const SOURCE_NAME = { salon: 'Salón', web: 'Reserva online', booksy: 'Booksy', treatwell: 'Treatwell', fresha: 'Fresha', ical: 'Calendario', api: 'Integración' };
+const LANE_COLORS = ['#EFE4EA', '#E2EBF4', '#E3F0E7', '#F6EBD9', '#EDE7F6', '#FCE4EC'];
+const LANE_BORDER = ['#6E2A4E', '#2B5C8A', '#2E6B45', '#B7792B', '#5E4B8B', '#A8436A'];
+const hmToMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+const minToHm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const isoAdd = (date, n) => { const d = new Date(`${date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const mondayOf = (date) => { const wd = new Date(`${date}T12:00:00Z`).getUTCDay(); return isoAdd(date, wd === 0 ? -6 : 1 - wd); };
+const dayLabel = (date) => { const d = new Date(`${date}T12:00:00Z`); return `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
+const salonNameNow = () => S.me.salon?.name || S.me.salons?.find((x) => x.id === S.salonId)?.name || '';
+const bookingUrl = (slug) => `${location.origin}/reservar/${slug}`;
+
+VIEWS.agenda = async (main) => {
+  S.agendaWeek = S.agendaWeek || mondayOf(S.me.today);
+  const d = await api(`/api/agenda?from=${S.agendaWeek}&days=7`);
+  const empFilter = S.agendaEmp || '';
+  const emps = d.employees.filter((e) => !empFilter || String(e.id) === String(empFilter));
+  const laneOf = new Map(d.employees.map((e, i) => [e.id, i]));
+  const visible = d.appointments.filter((a) => a.status !== 'cancelada' && (!empFilter || String(a.employee_id) === String(empFilter)));
+  const pending = d.appointments.filter((a) => a.status === 'pendiente');
+  const days = Array.from({ length: 7 }, (_, i) => isoAdd(d.from, i)).filter((day) => d.schedule[new Date(`${day}T12:00:00Z`).getUTCDay()] || visible.some((a) => a.date === day));
+  const hoursOf = (day) => d.schedule[new Date(`${day}T12:00:00Z`).getUTCDay()];
+  const opens = days.map((day) => hoursOf(day)).filter(Boolean);
+  const startMin = Math.min(...opens.map((h) => hmToMin(h[0])), ...visible.map((a) => hmToMin(a.start)), 9 * 60);
+  const endMin = Math.max(...opens.map((h) => hmToMin(h[1])), ...visible.map((a) => hmToMin(a.end)), 14 * 60);
+  const PX = 1.3;
+  const lanes = Math.max(1, emps.length);
+  const block = (a) => {
+    const lane = empFilter ? 0 : (laneOf.get(a.employee_id) ?? 0);
+    const color = laneOf.get(a.employee_id) ?? 0;
+    const top = (hmToMin(a.start) - startMin) * PX;
+    const h = Math.max(18, (hmToMin(a.end) - hmToMin(a.start)) * PX - 2);
+    return `<button type="button" class="appt st-${a.status}" data-appt="${a.id}" style="top:${top}px;height:${h}px;left:calc(${(lane / lanes) * 100}% + 2px);width:calc(${100 / lanes}% - 4px);background:${LANE_COLORS[color % 6]};border-left-color:${LANE_BORDER[color % 6]}" aria-label="${esc(`${a.start} ${a.client_name || 'Cita'}: ${a.services.map((s) => s.name).join(', ')}`)}">
+      <b>${esc((a.client_name || 'Sin nombre').split(' ')[0])}</b><small>${esc(a.start)} · ${esc(a.services.map((s) => s.name).join(' + '))}</small></button>`;
+  };
+  const weekEnd = isoAdd(d.from, 6);
+  main.innerHTML = `
+  <header class="page-head">
+    <div><div class="eyebrow">Semana del ${dayLabel(d.from)} al ${dayLabel(weekEnd)} · ${visible.length} citas${pending.length ? ` · ${pending.length} por confirmar` : ''}</div><h1>Agenda</h1></div>
+    <div class="head-actions">
+      <button type="button" class="btn small" id="wPrev" aria-label="Semana anterior">‹</button>
+      <button type="button" class="btn small" id="wToday">Hoy</button>
+      <button type="button" class="btn small" id="wNext" aria-label="Semana siguiente">›</button>
+      <select class="input small-select" id="empFilter" aria-label="Profesional"><option value="">Todo el equipo</option>${d.employees.map((e) => `<option value="${e.id}" ${String(e.id) === String(empFilter) ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select>
+      <button type="button" class="btn primary" id="newAppt">Nueva cita</button>
+    </div>
+  </header>
+  ${pending.length ? `<section class="card pending-card"><div class="card-head"><h2>Reservas por confirmar · ${pending.length}</h2><span class="muted">Llegan de la reserva online y de otras plataformas</span></div>
+    ${pending.slice(0, 6).map((a) => `<div class="pending-row"><span><b>${esc(a.client_name || 'Sin nombre')}</b> <small class="muted">${dayLabel(a.date)} · ${a.start} · ${esc(a.services.map((s) => s.name).join(' + '))}${a.employee_name ? ` · ${esc(a.employee_name)}` : ''}</small></span>
+      <span class="head-actions"><button type="button" class="btn small primary" data-confirm="${a.id}">Confirmar</button><button type="button" class="btn small" data-appt="${a.id}">Ver</button></span></div>`).join('')}</section>` : ''}
+  <div class="legend agenda-legend">${(empFilter ? emps : d.employees).map((e) => `<span><i style="background:${LANE_BORDER[(laneOf.get(e.id) ?? 0) % 6]}"></i>${esc(e.name)}</span>`).join('')}
+    <span class="muted">· Toca un hueco para crear una cita</span><a class="btn small ghost" href="#/ajustes" style="margin-left:auto">Reservas online y horario</a></div>
+  <section class="card agenda-card">
+    <div class="agenda-grid" style="--cols:${days.length};--colw:${Math.max(150, lanes * 62)}px">
+      <div class="agenda-times" style="height:${(endMin - startMin) * PX}px">${Array.from({ length: Math.ceil((endMin - startMin) / 60) + 1 }, (_, i) => startMin + i * 60).filter((m) => m <= endMin).map((m) => `<span style="top:${(m - startMin) * PX}px">${minToHm(m)}</span>`).join('')}</div>
+      ${days.map((day) => {
+        const h = hoursOf(day);
+        const closedTop = h ? (hmToMin(h[1]) - startMin) * PX : 0;
+        return `<div class="agenda-day ${day === d.today ? 'today' : ''}">
+          <div class="agenda-day-head"><b>${DAY_SHORT[new Date(`${day}T12:00:00Z`).getUTCDay()]} ${Number(day.slice(8))}</b><small>${visible.filter((a) => a.date === day).length} citas</small></div>
+          <div class="agenda-col" data-day="${day}" style="height:${(endMin - startMin) * PX}px;background-size:100% ${60 * PX}px">
+            ${h && hmToMin(h[0]) > startMin ? `<div class="closed" style="top:0;height:${(hmToMin(h[0]) - startMin) * PX}px"></div>` : ''}
+            ${h && hmToMin(h[1]) < endMin ? `<div class="closed" style="top:${closedTop}px;height:${(endMin - hmToMin(h[1])) * PX}px"></div>` : ''}
+            ${!h ? `<div class="closed" style="top:0;height:100%"></div>` : ''}
+            ${day === d.today ? (() => { const n = new Date(); const nm = n.getHours() * 60 + n.getMinutes(); return nm > startMin && nm < endMin ? `<div class="now-line" style="top:${(nm - startMin) * PX}px"></div>` : ''; })() : ''}
+            ${visible.filter((a) => a.date === day).map(block).join('')}
+          </div></div>`;
+      }).join('')}
+    </div>
+  </section>
+  <section class="agenda-list" aria-label="Citas de la semana">
+    ${days.map((day) => {
+      const list = visible.filter((a) => a.date === day);
+      return `<div class="card"><h2>${dayLabel(day)}${day === d.today ? ' · hoy' : ''}</h2>
+        ${list.length ? list.map((a) => `<button type="button" class="list-appt" data-appt="${a.id}"><span class="time">${a.start}</span><span class="txt"><b>${esc(a.client_name || 'Sin nombre')}</b><small>${esc(a.services.map((s) => s.name).join(' + '))}${a.employee_name ? ` · ${esc(a.employee_name)}` : ''}</small></span><span class="tag ${APPT_STATUS[a.status][1]}">${APPT_STATUS[a.status][0]}</span></button>`).join('') : `<div class="muted" style="font-size:14px">${hoursOf(day) ? 'Sin citas' : 'Cerrado'}</div>`}
+        ${hoursOf(day) ? `<button type="button" class="btn small" data-newday="${day}">Nueva cita este día</button>` : ''}</div>`;
+    }).join('')}
+  </section>`;
+
+  $('#wPrev').onclick = () => { S.agendaWeek = isoAdd(S.agendaWeek, -7); render(); };
+  $('#wNext').onclick = () => { S.agendaWeek = isoAdd(S.agendaWeek, 7); render(); };
+  $('#wToday').onclick = () => { S.agendaWeek = mondayOf(S.me.today); render(); };
+  $('#empFilter').onchange = (e) => { S.agendaEmp = e.target.value; render(); };
+  $('#newAppt').onclick = () => appointmentForm({ date: d.today >= d.from && d.today <= weekEnd ? d.today : days[0] || d.from });
+  $$('[data-appt]', main).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); appointmentDialog(Number(b.dataset.appt)); }));
+  $$('[data-newday]', main).forEach((b) => (b.onclick = () => appointmentForm({ date: b.dataset.newday })));
+  $$('[data-confirm]', main).forEach((b) => (b.onclick = async () => { await api(`/api/appointments/${b.dataset.confirm}`, { method: 'PUT', body: { status: 'confirmada' } }); toast('Cita confirmada'); render(); }));
+  $$('.agenda-col', main).forEach((col) => (col.onclick = (e) => {
+    if (e.target.closest('.appt')) return;
+    const rect = col.getBoundingClientRect();
+    const m = Math.round(((e.clientY - rect.top) / PX + startMin) / 15) * 15;
+    appointmentForm({ date: col.dataset.day, time: minToHm(m), employeeId: empFilter || '' });
+  }));
+};
+
+/* Diálogo "Nueva cita": cliente, servicios (la duración se suma sola),
+   profesional, día y uno de los huecos libres. */
+async function appointmentForm({ date, time = '', employeeId = '', client = null } = {}) {
+  const cat = await api('/api/catalog');
+  const services = cat.services.filter((s) => s.active);
+  const employees = cat.employees.filter((e) => e.active);
+  const st = { client, newClient: null, services: [], employee: String(employeeId || ''), date, time };
+  const dlg = document.createElement('dialog');
+  dlg.className = 'wide';
+  dlg.innerHTML = `<form method="dialog">
+    <h2>Nueva cita</h2>
+    <div class="field">Clienta o cliente<div id="apClient"></div></div>
+    <div class="field">Servicios <span class="hint">Toca uno o varios: la duración se calcula sola.</span>
+      <div class="svc-chips" id="apSvc">${services.map((s) => `<button type="button" class="chip" data-svc="${s.id}" aria-pressed="false">${esc(s.name)} <small>${s.duration_min} min · ${eur(s.price)}</small></button>`).join('')}</div></div>
+    <div class="form-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+      <label class="field">Profesional<select id="apEmp"><option value="">Cualquiera libre</option>${employees.map((e) => `<option value="${e.id}" ${String(e.id) === st.employee ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></label>
+      <label class="field">Día<input type="date" id="apDate" value="${esc(date)}" min="${S.me.today}"></label>
+    </div>
+    <div class="field">Hora <span class="hint" id="apSummary">Elige servicios para ver los huecos libres.</span><div class="slots" id="apSlots"></div></div>
+    <label class="field">Nota (opcional)<input id="apNotes" placeholder="Por ejemplo: trae foto de referencia"></label>
+    <p class="err down hidden" role="alert" style="margin:0;font-weight:600"></p>
+    <div class="form-actions"><button type="button" class="btn" data-cancel>Cancelar</button><button class="btn primary" type="submit">Crear cita</button></div>
+  </form>`;
+  document.body.appendChild(dlg);
+  const err = (m) => { const p = $('.err', dlg); p.textContent = m; p.classList.toggle('hidden', !m); };
+  $('[data-cancel]', dlg).onclick = () => dlg.close();
+  dlg.addEventListener('close', () => dlg.remove());
+
+  const renderClientBox = () => {
+    const box = $('#apClient', dlg);
+    if (st.client) {
+      box.innerHTML = `<div class="input" style="display:flex;align-items:center;justify-content:space-between"><span><b>${esc(st.client.name)}</b> <small class="muted">${esc(st.client.phone || '')}</small></span><button type="button" class="btn small ghost" id="apClear">Cambiar</button></div>`;
+      $('#apClear', dlg).onclick = () => { st.client = null; renderClientBox(); };
+      return;
+    }
+    if (st.newClient) {
+      box.innerHTML = `<div class="form-grid" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) minmax(0,0.8fr)"><input class="input" id="apNcName" placeholder="Nombre" value="${esc(st.newClient.name)}" aria-label="Nombre"><input class="input" id="apNcPhone" type="tel" placeholder="Teléfono" aria-label="Teléfono"><select class="input" id="apNcGender" aria-label="Género"><option value="M">Mujer</option><option value="H">Hombre</option><option value="U">—</option></select></div>`;
+      $('#apNcName', dlg).oninput = (e) => (st.newClient.name = e.target.value);
+      $('#apNcPhone', dlg).oninput = (e) => (st.newClient.phone = e.target.value);
+      $('#apNcGender', dlg).onchange = (e) => (st.newClient.gender = e.target.value);
+      return;
+    }
+    box.innerHTML = `<div class="suggest"><input class="input" id="apSearch" placeholder="Buscar por nombre o teléfono" autocomplete="off" aria-label="Buscar cliente"><div class="suggest-list hidden" id="apSuggest"></div></div><button type="button" class="btn small ghost" id="apNew" style="align-self:flex-start">+ Cliente nuevo</button>`;
+    let t;
+    $('#apSearch', dlg).oninput = (e) => {
+      clearTimeout(t);
+      const q = e.target.value.trim();
+      const list = $('#apSuggest', dlg);
+      if (q.length < 2) return list.classList.add('hidden');
+      t = setTimeout(async () => {
+        const r = await api(`/api/clients?q=${encodeURIComponent(q)}`);
+        list.innerHTML = r.clients.slice(0, 8).map((c) => `<button type="button" data-cid="${c.id}">${esc(c.name)} <small class="muted">${esc(c.phone || '')}</small></button>`).join('') || '<div class="empty">Sin resultados</div>';
+        list.classList.remove('hidden');
+        $$('[data-cid]', list).forEach((b) => (b.onclick = () => { st.client = r.clients.find((c) => String(c.id) === b.dataset.cid); renderClientBox(); }));
+      }, 200);
+    };
+    $('#apNew', dlg).onclick = () => { st.newClient = { name: $('#apSearch', dlg).value, phone: '', gender: 'M' }; renderClientBox(); };
+  };
+
+  const loadSlots = async () => {
+    const box = $('#apSlots', dlg);
+    const total = st.services.reduce((a, id) => a + (services.find((s) => s.id === id)?.duration_min || 0), 0);
+    const price = st.services.reduce((a, id) => a + (services.find((s) => s.id === id)?.price || 0), 0);
+    if (!st.services.length || !st.date) { box.innerHTML = ''; $('#apSummary', dlg).textContent = 'Elige servicios para ver los huecos libres.'; return; }
+    $('#apSummary', dlg).textContent = `${total} min · ${eur(price, 2)}`;
+    box.innerHTML = '<span class="muted">Buscando huecos…</span>';
+    const r = await api(`/api/agenda/slots?date=${st.date}&services=${st.services.join(',')}${st.employee ? `&employee=${st.employee}` : ''}`);
+    if (st.time && !r.slots.some((x) => x.time === st.time)) st.time = '';
+    box.innerHTML = r.slots.length ? r.slots.map((x) => `<button type="button" class="slot" data-time="${x.time}" aria-pressed="${x.time === st.time}">${x.time}</button>`).join('') : '<span class="muted">No quedan huecos ese día para esta duración. Prueba otro día o profesional.</span>';
+    $$('[data-time]', box).forEach((b) => (b.onclick = () => { st.time = b.dataset.time; $$('[data-time]', box).forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }));
+  };
+
+  $$('[data-svc]', dlg).forEach((b) => (b.onclick = () => {
+    const id = Number(b.dataset.svc);
+    st.services = st.services.includes(id) ? st.services.filter((x) => x !== id) : [...st.services, id];
+    b.setAttribute('aria-pressed', String(st.services.includes(id)));
+    loadSlots();
+  }));
+  $('#apEmp', dlg).onchange = (e) => { st.employee = e.target.value; loadSlots(); };
+  $('#apDate', dlg).onchange = (e) => { st.date = e.target.value; loadSlots(); };
+  $('form', dlg).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err('');
+    if (!st.services.length) return err('Elige al menos un servicio.');
+    if (!st.time) return err('Elige una hora libre.');
+    if (!st.client && !st.newClient?.name?.trim()) return err('Elige o crea la clienta.');
+    try {
+      const a = await api('/api/appointments', { method: 'POST', body: {
+        client_id: st.client?.id || null, new_client: st.client ? null : st.newClient, employee_id: st.employee || null,
+        date: st.date, start: st.time, service_ids: st.services, notes: $('#apNotes', dlg).value
+      } });
+      dlg.close();
+      toast(`Cita creada: ${dayLabel(a.date)} a las ${a.start}${a.employee_name ? ` con ${a.employee_name}` : ''}`);
+      S.agendaWeek = mondayOf(a.date);
+      if (location.hash.startsWith('#/agenda')) render(); else go('#/agenda');
+    } catch (ex) { err(ex.message); }
+  });
+  renderClientBox();
+  dlg.showModal();
+}
+
+async function appointmentDialog(id) {
+  const a = await api(`/api/appointments/${id}`);
+  const [label, tone] = APPT_STATUS[a.status];
+  const price = a.services.reduce((s, x) => s + (x.price || 0), 0);
+  const active = ['pendiente', 'confirmada'].includes(a.status);
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `<form method="dialog">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px"><h2>${esc(a.client_name || 'Cita')}</h2><span class="tag ${tone}">${label}</span></div>
+    <div>
+      <div class="kv"><span>Cuándo</span><span>${dayLabel(a.date)} · ${a.start}–${a.end}</span></div>
+      <div class="kv"><span>Servicios</span><span>${esc(a.services.map((s) => s.name).join(' + '))}</span></div>
+      <div class="kv"><span>Profesional</span><span>${esc(a.employee_name || 'Sin asignar')}</span></div>
+      <div class="kv"><span>Precio previsto</span><span>${eur(price, 2)}</span></div>
+      <div class="kv"><span>Origen</span><span>${esc(SOURCE_NAME[a.source] || a.source)}</span></div>
+      ${a.client_phone ? `<div class="kv"><span>Teléfono</span><span>${esc(a.client_phone)}</span></div>` : ''}
+      ${a.notes ? `<div class="kv"><span>Nota</span><span style="white-space:normal;text-align:right">${esc(a.notes)}</span></div>` : ''}
+    </div>
+    <div class="appt-actions">
+      ${a.status === 'pendiente' ? '<button type="button" class="btn primary" data-act="confirmada">Confirmar</button>' : ''}
+      ${active ? '<button type="button" class="btn primary" data-act="start">Empezar servicio</button><button type="button" class="btn" data-act="charge">Cobrar</button><button type="button" class="btn" data-act="move">Cambiar día u hora</button>' : ''}
+      ${a.status === 'en_curso' ? '<a class="btn primary" href="#/cobro">Ir a cobrar</a>' : ''}
+      ${active && a.client_id ? '<button type="button" class="btn" data-act="write">Escribirle</button>' : ''}
+      ${a.client_id ? `<a class="btn ghost" href="#/clientes/${a.client_id}">Ver ficha</a>` : ''}
+      ${active ? '<button type="button" class="btn danger" data-act="no_presentada">No vino</button><button type="button" class="btn danger" data-act="cancelada">Cancelar cita</button>' : ''}
+    </div>
+    <div class="form-actions"><button type="button" class="btn" data-cancel>Cerrar</button></div>
+  </form>`;
+  document.body.appendChild(dlg);
+  $('[data-cancel]', dlg).onclick = () => dlg.close();
+  dlg.addEventListener('close', () => dlg.remove());
+  $$('[data-act]', dlg).forEach((b) => (b.onclick = async () => {
+    const act = b.dataset.act;
+    try {
+      if (act === 'start') {
+        await api(`/api/appointments/${a.id}/start`, { method: 'POST', body: {} });
+        dlg.close();
+        toast('Cronómetro en marcha: cobra desde «Nuevo cobro» al terminar');
+        return go('#/cobro');
+      }
+      if (act === 'charge') { dlg.close(); return go(`#/cobro?cita=${a.id}`); }
+      if (act === 'move') { dlg.close(); return rescheduleForm(a); }
+      if (act === 'write') { dlg.close(); return newMessageDialog({ id: a.client_id, name: a.client_name, phone: a.client_phone }); }
+      if ((act === 'cancelada' || act === 'no_presentada') && !(await confirmAction(act === 'cancelada' ? '¿Cancelar esta cita? El hueco queda libre.' : '¿Marcar que no vino a la cita?', act === 'cancelada' ? 'Cancelar cita' : 'Marcar'))) return;
+      await api(`/api/appointments/${a.id}`, { method: 'PUT', body: { status: act } });
+      dlg.close();
+      toast(act === 'confirmada' ? 'Cita confirmada' : act === 'cancelada' ? 'Cita cancelada' : 'Anotado');
+      render();
+    } catch (err) { toast(err.message, true); }
+  }));
+  dlg.showModal();
+}
+
+async function rescheduleForm(a) {
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `<form method="dialog"><h2>Cambiar cita</h2>
+    <p class="muted" style="margin:0">${esc(a.client_name || '')} · ${esc(a.services.map((s) => s.name).join(' + '))} (${hmToMin(a.end) - hmToMin(a.start)} min)</p>
+    <label class="field">Día<input type="date" id="rsDate" value="${a.date}" min="${S.me.today}"></label>
+    <div class="field">Hora<div class="slots" id="rsSlots"></div></div>
+    <p class="err down hidden" role="alert" style="margin:0;font-weight:600"></p>
+    <div class="form-actions"><button type="button" class="btn" data-cancel>Cancelar</button><button class="btn primary" type="submit">Guardar cambio</button></div></form>`;
+  document.body.appendChild(dlg);
+  let time = '';
+  $('[data-cancel]', dlg).onclick = () => dlg.close();
+  dlg.addEventListener('close', () => dlg.remove());
+  const load = async () => {
+    const ids = a.services.map((s) => s.service_id).filter(Boolean);
+    const r = await api(`/api/agenda/slots?date=${$('#rsDate', dlg).value}&services=${ids.join(',')}&ignore=${a.id}`);
+    const box = $('#rsSlots', dlg);
+    box.innerHTML = r.slots.length ? r.slots.map((x) => `<button type="button" class="slot" data-time="${x.time}" aria-pressed="false">${x.time}</button>`).join('') : '<span class="muted">Sin huecos ese día.</span>';
+    $$('[data-time]', box).forEach((b) => (b.onclick = () => { time = b.dataset.time; $$('[data-time]', box).forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }));
+  };
+  $('#rsDate', dlg).onchange = load;
+  $('form', dlg).addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!time) { const p = $('.err', dlg); p.textContent = 'Elige una hora'; p.classList.remove('hidden'); return; }
+    try {
+      const r = await api(`/api/appointments/${a.id}`, { method: 'PUT', body: { date: $('#rsDate', dlg).value, start: time } });
+      dlg.close();
+      toast(`Cita movida a ${dayLabel(r.date)} a las ${r.start}`);
+      S.agendaWeek = mondayOf(r.date);
+      render();
+    } catch (err) { const p = $('.err', dlg); p.textContent = err.message; p.classList.remove('hidden'); }
+  });
+  await load();
+  dlg.showModal();
+}
+
+/* Ajustes: reservas online, horario y agendas externas. */
+async function renderBookingSettings(box) {
+  const b = await api('/api/booking-settings');
+  const url = bookingUrl(b.booking_slug);
+  const cal = `${location.origin}/api/public/calendar/${b.calendar_token}`;
+  const cat = await api('/api/catalog');
+  box.innerHTML = `
+    <div class="card-head"><h2>Agenda y reservas online</h2><span class="tag ${b.booking_enabled ? 'green' : ''}">${b.booking_enabled ? 'Reservas abiertas' : 'Reservas cerradas'}</span></div>
+    <div class="grid g2">
+      <form id="bkForm" class="channel">
+        <h3>Página de reservas para tus clientas</h3>
+        <p class="muted" style="margin:0;font-size:13px">Compártela en tu WhatsApp, Instagram, Google y tu web. Cada reserva entra en la Agenda y te avisa en Mensajes.</p>
+        <div class="copy-row"><code class="key" id="bkUrl">${esc(url)}</code><button type="button" class="btn small" data-copy="${esc(url)}">Copiar enlace</button><a class="btn small" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a></div>
+        <label class="field">Dirección<span style="display:flex;align-items:center;gap:6px;font-weight:400"><span class="muted">/reservar/</span><input name="slug" value="${esc(b.booking_slug)}" style="flex:1"></span></label>
+        <label class="check"><input type="checkbox" name="enabled" ${b.booking_enabled ? 'checked' : ''}> Aceptar reservas online</label>
+        <label class="check"><input type="checkbox" name="auto" ${b.booking_auto_confirm ? 'checked' : ''}> Confirmarlas automáticamente (si no, quedan «por confirmar»)</label>
+        <div class="field">Horario del salón
+          <div class="schedule">${[1, 2, 3, 4, 5, 6, 0].map((d) => { const h = b.schedule[d]; return `<div class="sched-row"><label class="check"><input type="checkbox" data-open="${d}" ${h ? 'checked' : ''}> ${DAY_NAMES[d]}</label><input type="time" class="input" data-from="${d}" value="${h ? h[0] : '09:30'}" aria-label="Abre el ${DAY_NAMES[d]}"><input type="time" class="input" data-to="${d}" value="${h ? h[1] : '20:00'}" aria-label="Cierra el ${DAY_NAMES[d]}"></div>`; }).join('')}</div></div>
+        <div class="form-actions"><button class="btn primary" type="submit">Guardar</button></div>
+      </form>
+      <div class="channel">
+        <h3>Conectar otras agendas</h3>
+        <p class="muted" style="margin:0;font-size:13px">Si el salón ya usa Booksy, Treatwell, Fresha, Google Calendar u otro sistema, sus citas pueden entrar aquí solas.</p>
+        <div class="block-title">1 · Calendario iCal (Google Calendar, Outlook, muchos programas de reservas)</div>
+        ${b.feeds.length ? b.feeds.map((f) => `<div class="feed-row"><span><b>${esc(f.name || 'Calendario')}</b>${f.employee_name ? ` · ${esc(f.employee_name)}` : ''}<br><small class="muted">${f.last_sync ? `Última sincronización: ${esc(f.last_result || '')}` : 'Sin sincronizar'}</small></span>
+          <span class="head-actions"><button type="button" class="btn small" data-sync="${f.id}">Sincronizar</button><button type="button" class="icon-btn" data-delfeed="${f.id}" aria-label="Quitar calendario">${icon('trash', 16)}</button></span></div>`).join('') : ''}
+        <form id="feedForm" class="form-grid" style="grid-template-columns:minmax(0,1fr)">
+          <input class="input" name="url" placeholder="Dirección iCal (https:// o webcal://)" aria-label="Dirección iCal">
+          <div class="form-grid" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"><input class="input" name="name" placeholder="Nombre (p. ej. Booksy)" aria-label="Nombre del calendario">
+          <select class="input" name="employee" aria-label="Profesional"><option value="">Varios profesionales</option>${cat.employees.filter((e) => e.active).map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></div>
+          <button class="btn small" type="submit">Conectar calendario</button>
+        </form>
+        <span class="muted" style="font-size:12px">Se actualiza solo cada 15 minutos. El título del evento se usa para reconocer a la clienta y el servicio.</span>
+        <div class="block-title">2 · Integración directa (Booksy, Treatwell, Fresha vía Make o Zapier)</div>
+        <pre class="code">POST ${esc(location.origin)}/api/ingest/appointments
+Authorization: Bearer &lt;clave del salón&gt;
+{ "appointments": [{ "ref": "bk-123", "source": "booksy",
+  "date": "2026-10-16", "start": "10:00", "duration": 60,
+  "status": "confirmed", "employee": "Laura M.",
+  "client": { "name": "Marta Gil", "phone": "600111222" },
+  "services": [{ "name": "Color raíz", "price": 55 }] }] }</pre>
+        <span class="muted" style="font-size:12px">La clave está en «Conectar TPV / importar». Si llega otra vez la misma «ref», la cita se actualiza (cambios de hora y cancelaciones).</span>
+        <div class="block-title">3 · Ver la agenda en el móvil</div>
+        <div class="copy-row"><code class="key">${esc(cal)}</code><button type="button" class="btn small" data-copy="${esc(cal)}">Copiar</button></div>
+        <span class="muted" style="font-size:12px">En Google Calendar: «Otros calendarios → Desde URL». En iPhone: Ajustes → Calendario → Cuentas → Añadir calendario suscrito.</span>
+      </div>
+    </div>`;
+  $$('[data-copy]', box).forEach((btn) => (btn.onclick = async () => {
+    try { await navigator.clipboard.writeText(btn.dataset.copy); toast('Copiado'); }
+    catch { toast('No se pudo copiar: selecciona el texto y cópialo', true); }
+  }));
+  $('#bkForm', box).onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const schedule = {};
+    for (let d = 0; d < 7; d++) schedule[d] = $(`[data-open="${d}"]`, f).checked ? [$(`[data-from="${d}"]`, f).value, $(`[data-to="${d}"]`, f).value] : null;
+    try {
+      await api('/api/booking-settings', { method: 'PUT', body: { schedule, booking_slug: f.slug.value.trim(), booking_enabled: f.enabled.checked, booking_auto_confirm: f.auto.checked } });
+      toast('Agenda guardada');
+      renderBookingSettings(box);
+    } catch (err) { toast(err.message, true); }
+  };
+  $('#feedForm', box).onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      const r = await api('/api/calendar-feeds', { method: 'POST', body: { url: f.url.value.trim(), name: f.name.value, employee_id: f.employee.value || null } });
+      toast(r.sync.ok ? `Calendario conectado: ${r.sync.message}` : `Conectado, pero no se pudo leer: ${r.sync.error}`, !r.sync.ok);
+      renderBookingSettings(box);
+    } catch (err) { toast(err.message, true); }
+  };
+  $$('[data-sync]', box).forEach((btn) => (btn.onclick = async () => {
+    const r = await api(`/api/calendar-feeds/${btn.dataset.sync}/sync`, { method: 'POST', body: {} });
+    toast(r.ok ? `Sincronizado: ${r.message}` : `Error: ${r.error}`, !r.ok);
+    renderBookingSettings(box);
+  }));
+  $$('[data-delfeed]', box).forEach((btn) => (btn.onclick = async () => {
+    if (!(await confirmAction('¿Desconectar este calendario? Las citas ya copiadas se quedan.', 'Desconectar'))) return;
+    await api(`/api/calendar-feeds/${btn.dataset.delfeed}`, { method: 'DELETE', body: {} });
+    renderBookingSettings(box);
+  }));
+}
 
 render();

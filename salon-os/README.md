@@ -88,6 +88,47 @@ node web-demo/build.mjs        # genera web-demo/dist, publicable en cualquier h
 - Botón **Ver panel**, que abre cualquier salón con todos sus datos.
 - Altas de salones y edición de su plan y cuota.
 
+**Agenda y reservas online**
+
+- **Agenda semanal** por estilista, con huecos fuera del horario sombreados y
+  línea de la hora actual. En el móvil se muestra como lista por días.
+- **Nueva cita en tres toques:** clienta, servicios (la duración se suma sola) y
+  uno de los huecos libres que propone. Si eliges «cualquiera libre», se asigna
+  a quien tenga menos citas.
+- Desde una cita:
+  - confirmar, cambiar día u hora, marcar que no vino o cancelar;
+  - **Empezar servicio**, que arranca el cronómetro del cobro y así mide el
+    tiempo real;
+  - **Cobrar** con todo ya rellenado.
+- **Página de reservas para clientas** en `/reservar/<salón>`: servicios,
+  profesional, día y hora. Se puede incrustar en la web del salón.
+  - La reserva entra en la agenda, se crea la ficha si es nueva y el salón
+    recibe un aviso en Mensajes.
+  - La clienta recibe un enlace para añadir la cita a su calendario o
+    cancelarla.
+- **Recordatorio «Citas de mañana»** en Mensajes, para reducir los plantones.
+- **Conexión con otras agendas:**
+  - calendarios iCal (Google Calendar, Outlook y muchos programas de reservas),
+    que se sincronizan cada 15 minutos;
+  - `POST /api/ingest/appointments` para Booksy, Treatwell o Fresha vía Make o
+    Zapier: crea, mueve y cancela citas por su referencia;
+  - la agenda como calendario suscribible desde el móvil.
+
+**Tiempos reales y rentabilidad**
+
+- El tiempo real de cada servicio sale de la hora de inicio y fin de cada
+  ticket: cronómetro del cobro, TPV o importación. Si un ticket tiene varios
+  servicios, su tiempo se reparte según la duración del menú.
+- **Tiempos y rentabilidad**, por servicio y por empleado:
+  - minutos del menú frente a minutos reales;
+  - precio, €/min y €/hora;
+  - **rentable a partir de 0,85 €/min** (el distribuidor lo puede cambiar por
+    salón), con el precio mínimo o el tiempo necesario para llegar.
+- **Reporte del salón para el distribuidor** (pantalla, impresión y Excel
+  `.xlsx`): empleados, horas, servicios y ticket medio por empleado; servicios y
+  ticket medio de mujer y de hombre; ticket medio general y precio hora;
+  precios y tiempos de cada servicio; panel de rentabilidad.
+
 **Comunicación con clientes (Mensajes)**
 
 - Bandeja compartida de conversaciones (WhatsApp, email, SMS) con estados

@@ -213,6 +213,48 @@ CREATE TABLE IF NOT EXISTS leads (
   notes TEXT DEFAULT '',
   created_at TEXT DEFAULT (datetime('now'))
 );
+-- Agenda: citas con uno o varios servicios.
+CREATE TABLE IF NOT EXISTS appointments (
+  id INTEGER PRIMARY KEY,
+  salon_id INTEGER NOT NULL REFERENCES salons(id),
+  client_id INTEGER REFERENCES clients(id),
+  client_name TEXT DEFAULT '',
+  client_phone TEXT DEFAULT '',
+  employee_id INTEGER REFERENCES employees(id),
+  date TEXT NOT NULL,
+  start TEXT NOT NULL,
+  end TEXT NOT NULL,
+  status TEXT DEFAULT 'confirmada' CHECK (status IN ('pendiente', 'confirmada', 'en_curso', 'completada', 'cancelada', 'no_presentada')),
+  source TEXT DEFAULT 'salon',
+  external_ref TEXT,
+  notes TEXT DEFAULT '',
+  token TEXT,
+  ticket_id INTEGER REFERENCES tickets(id),
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE (salon_id, external_ref)
+);
+CREATE TABLE IF NOT EXISTS appointment_services (
+  id INTEGER PRIMARY KEY,
+  appointment_id INTEGER NOT NULL REFERENCES appointments(id) ON DELETE CASCADE,
+  service_id INTEGER REFERENCES services(id),
+  name TEXT NOT NULL,
+  duration_min INTEGER DEFAULT 0,
+  price REAL DEFAULT 0
+);
+-- Calendarios externos (iCal) que se copian en la agenda.
+CREATE TABLE IF NOT EXISTS calendar_feeds (
+  id INTEGER PRIMARY KEY,
+  salon_id INTEGER NOT NULL REFERENCES salons(id),
+  name TEXT DEFAULT '',
+  url TEXT NOT NULL,
+  employee_id INTEGER REFERENCES employees(id),
+  last_sync TEXT,
+  last_result TEXT DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_appt_salon_date ON appointments (salon_id, date);
+CREATE INDEX IF NOT EXISTS idx_appt_client ON appointments (client_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_appt_token ON appointments (token);
+
 -- Servicios en curso: se empiezan con el cronómetro y se cierran al cobrar.
 CREATE TABLE IF NOT EXISTS open_visits (
   id INTEGER PRIMARY KEY,
@@ -235,7 +277,14 @@ const MIGRATIONS = [
   // 'tpv'/'csv'/'api' (vienen del sistema de caja) o 'manual' (tecleadas).
   ['tickets', 'time_source', "TEXT DEFAULT ''"],
   // Precio mínimo por minuto para considerar un servicio rentable.
-  ['salons', 'min_price_minute', 'REAL DEFAULT 0.85']
+  ['salons', 'min_price_minute', 'REAL DEFAULT 0.85'],
+  // Agenda y reservas online.
+  ['salons', 'schedule', "TEXT DEFAULT ''"],
+  ['salons', 'booking_slug', 'TEXT'],
+  ['salons', 'booking_enabled', 'INTEGER DEFAULT 1'],
+  ['salons', 'booking_auto_confirm', 'INTEGER DEFAULT 1'],
+  ['salons', 'calendar_token', 'TEXT'],
+  ['open_visits', 'appointment_id', 'INTEGER']
 ];
 
 function migrate(db) {

@@ -11,6 +11,7 @@
 import { today, addDays, daysBetween } from './dates.js';
 import { listClients, clientDetail } from './clients.js';
 import { refreshClientInsights } from './insights.js';
+import { tomorrowAppointments } from './agenda.js';
 
 export const digits = (s) => String(s ?? '').replace(/\D/g, '');
 /* Teléfono comparable: últimos 9 dígitos (formato español sin prefijo). */
@@ -23,7 +24,7 @@ export const DEFAULT_TEMPLATES = [
   ['reactivacion', 'Te echamos de menos', 'Hola {nombre}, te echamos de menos en {salon}. ¿Te apetece volver a vernos? Esta semana tenemos huecos y nos encantaría cuidarte.'],
   ['segunda_visita', 'Segunda visita', 'Hola {nombre}, gracias por confiar en {salon}. ¿Qué tal estás con tu {servicio}? Si quieres, te guardamos ya tu próxima cita.'],
   ['postservicio', 'Gracias por venir', 'Hola {nombre}, gracias por venir hoy a {salon}. ¿Qué tal te ha quedado? Tu opinión nos ayuda mucho.'],
-  ['confirmacion', 'Confirmar cita', 'Hola {nombre}, te recordamos tu cita en {salon} el {fecha}. ¿Nos confirmas que vienes?']
+  ['confirmacion', 'Confirmar cita', 'Hola {nombre}, te recordamos tu cita en {salon} {fecha}. ¿Nos confirmas que vienes? Si no puedes venir, avísanos y te buscamos otro hueco.']
 ];
 
 export function ensureTemplates(db, salonId) {
@@ -208,6 +209,7 @@ export function reminderSuggestions(db, salon) {
   const topService = db.prepare(`SELECT l.name FROM ticket_lines l JOIN tickets tk ON tk.id = l.ticket_id
       WHERE tk.client_id = ? AND l.kind = 'service' GROUP BY l.name ORDER BY COUNT(*) DESC LIMIT 1`);
   const groups = {
+    confirmacion: { kind: 'confirmacion', title: 'Citas de mañana', description: 'Recuérdales la cita y pide que la confirmen: reduce los plantones.', items: [] },
     recordatorio: { kind: 'recordatorio', title: 'Le toca volver', description: 'Clientes habituales cuya próxima visita estimada es esta semana.', items: [] },
     reactivacion: { kind: 'reactivacion', title: 'Te echamos de menos', description: 'Clientes que llevan más del doble de su frecuencia sin venir.', items: [] },
     segunda_visita: { kind: 'segunda_visita', title: 'Segunda visita', description: 'Clientes nuevos de hace 3 a 6 semanas que aún no han vuelto.', items: [] },
@@ -227,6 +229,14 @@ export function reminderSuggestions(db, salon) {
     const servicio = (topService.get(c.id)?.name || 'servicio').toLowerCase();
     const text = renderTemplate(templates.get(kind) || '', { nombre: c.name.split(' ')[0], salon: salon.name, dias: since, servicio, fecha: '' });
     groups[kind].items.push({ client_id: c.id, name: c.name, phone: c.phone, reason, text });
+  }
+  const DAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  for (const a of tomorrowAppointments(db, salon.id)) {
+    if (!a.client_id || phoneKey(a.client_phone).length < 9 || recentlySent(a.client_id, 'confirmacion', 2)) continue;
+    const d = new Date(`${a.date}T12:00:00Z`);
+    const fecha = `mañana, ${DAYS[d.getUTCDay()]} ${d.getUTCDate()}, a las ${a.start}`;
+    const text = renderTemplate(templates.get('confirmacion') || '', { nombre: (a.client_name || '').split(' ')[0], salon: salon.name, fecha, servicio: a.services.map((x) => x.name.toLowerCase()).join(' y '), dias: '' });
+    groups.confirmacion.items.push({ client_id: a.client_id, name: a.client_name, phone: a.client_phone, reason: `${a.start} · ${a.services.map((x) => x.name).join(' + ')}`, text });
   }
   for (const g of Object.values(groups)) g.items = g.items.slice(0, 60);
   return Object.values(groups);

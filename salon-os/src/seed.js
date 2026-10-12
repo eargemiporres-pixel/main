@@ -7,6 +7,7 @@ import { hashPassword, newApiKey } from './auth.js';
 import { today, addDays, addMonths, monthStart, daysBetween } from './dates.js';
 import { getOrCreateConversation, recordInbound, ensureTemplates, renderTemplate } from './messaging.js';
 import { refreshClientInsights } from './insights.js';
+import { createAppointment, ensureBookingSetup, scheduleOf, weekday, toMin, fromMin } from './agenda.js';
 
 function rng(seed) {
   let a = seed >>> 0;
@@ -241,6 +242,7 @@ export function seedDemo(db, { password = 'demo1234' } = {}) {
       }
 
       seedConversations(db, sid, cfg, emps, r);
+      seedAgenda(db, sid, emps, r);
     });
   });
 }
@@ -343,5 +345,45 @@ function seedConversations(db, sid, cfg, emps, r) {
       channel: 'whatsapp', from: `6${String(Math.floor(r() * 1e8)).padStart(8, '0')}`, name: 'Patricia Romero',
       body: 'Hola, me ha pasado vuestro contacto una amiga. ¿Hacéis mechas? ¿Qué precio tenéis?', externalId: `demo-${sid}-new`, at: stamp(0, 30)
     });
+  }
+}
+
+/* Agenda de ejemplo: los 3 días anteriores y los 10 siguientes, con huecos
+   libres para que se vea cómo reservar. Algunas citas llegan de la web y de
+   otras plataformas. */
+function seedAgenda(db, sid, emps, r) {
+  const salon = ensureBookingSetup(db, db.prepare('SELECT * FROM salons WHERE id = ?').get(sid));
+  const schedule = scheduleOf(salon);
+  const services = db.prepare('SELECT id, name, duration_min FROM services WHERE salon_id = ? AND active = 1').all(sid);
+  const clients = db.prepare("SELECT id, name, phone, gender FROM clients WHERE salon_id = ? AND phone <> '' ORDER BY id DESC LIMIT 400").all(sid);
+  if (!services.length || !clients.length) return;
+  const t = today();
+  const pick = (arr) => arr[Math.floor(r() * arr.length)];
+  for (let off = -3; off <= 10; off++) {
+    const date = addDays(t, off);
+    const hours = schedule[weekday(date)];
+    if (!hours) continue;
+    const fill = off < 0 ? 0.75 : Math.max(0.15, 0.7 - off * 0.05);
+    for (const e of emps) {
+      let m = toMin(hours[0]);
+      const close = toMin(hours[1]);
+      while (m < close - 20) {
+        if (r() > fill) { m += 30; continue; }
+        const c = pick(clients);
+        const main = pick(services);
+        const ids = [main.id];
+        if (r() < 0.2) ids.push(pick(services).id);
+        const dur = [...new Set(ids)].reduce((sum, id) => sum + services.find((x) => x.id === id).duration_min, 0);
+        if (m + dur > close) break;
+        const x = r();
+        const source = x < 0.2 ? 'web' : x < 0.28 ? 'booksy' : 'salon';
+        createAppointment(db, salon, {
+          clientId: c.id, clientName: c.name, clientPhone: c.phone, employeeId: e.id, date, start: fromMin(m), serviceIds: [...new Set(ids)],
+          status: off < 0 ? (r() < 0.06 ? 'no_presentada' : 'completada') : source === 'web' && r() < 0.4 ? 'pendiente' : 'confirmada',
+          source, ignoreAvailability: true
+        });
+        m = Math.ceil((m + dur + (r() < 0.5 ? 0 : 15)) / 15) * 15;
+      }
+    }
   }
 }
