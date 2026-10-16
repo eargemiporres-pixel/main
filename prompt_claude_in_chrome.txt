@@ -1,0 +1,29 @@
+Te adjunto un CSV (salones_valencia_provincia.csv) con salones de peluquería de la provincia de Valencia. Está incompleto: casi todos los campos Instagram, Teléfono y "Cumple 3+ trabajadores" están como "no verificado".
+
+OBJETIVO
+Quiero el listado COMPLETO de salones de peluquería (peluquería/estilismo de cabello, incluidos salones mixtos de peluquería y estética) de TODA la provincia de Valencia que tengan al menos 3 trabajadores en el salón, contando o sin contar a la dueña. Para cada salón: nombre completo, dirección completa, Instagram, teléfono/contacto, número estimado de trabajadores y la evidencia de ese número.
+
+FUENTES (usa las tres, con mi sesión ya iniciada en Chrome)
+1. Instagram: busca el perfil oficial de cada salón. Cuenta personas del equipo por fotos, etiquetas, publicaciones de "nuestro equipo", biografía y cuentas etiquetadas. Anota el @usuario y la URL.
+2. Treatwell (treatwell.es): recorre los listados por municipio y las fichas; el equipo suele aparecer en la ficha o en las reseñas (nombres de profesionales distintos).
+3. Google Maps / Google: ficha del negocio (teléfono, dirección, web), fotos y reseñas con nombres del personal.
+Cuando haga falta, mira también la web propia del salón (sección Equipo / Contacto).
+
+COBERTURA (no te dejes ninguna zona)
+Recorre cada comarca y cada municipio de la provincia, empezando por: València ciudad (por distritos y barrios), l'Horta Nord, l'Horta Oest, l'Horta Sud, Camp de Túria, Camp de Morvedre, Ribera Alta, Ribera Baixa, La Safor, la Costera, la Vall d'Albaida, Plana de Utiel-Requena, Hoya de Buñol, Valle de Ayora, Los Serranos, Rincón de Ademuz, Canal de Navarrés. Busca "peluquería [municipio]" en Google Maps y en Treatwell y revisa TODOS los resultados, no solo los primeros. Incluye también salones de pueblos pequeños si cumplen el mínimo.
+
+CRITERIO DE 3+ TRABAJADORES
+- Cuenta trabajadores del salón (peluqueros/as, colorista, ayudantes, recepción si es del salón), con o sin dueña.
+- Marca "Sí" solo con evidencia: 3 o más personas distintas identificables en Instagram/web/reseñas. Marca "Probable" si hay indicios sin confirmar, "No" si es claramente 1-2 personas, y "No verificado" si no pudiste comprobarlo. Escribe en la columna Evidencia qué viste (p. ej. "4 nombres distintos en reseñas: Marcial, Juani, Isa, Mónica").
+- No inventes datos. Si no encuentras Instagram o teléfono, deja "no encontrado".
+
+REGLAS PRÁCTICAS
+- Ve despacio y con pausas entre perfiles de Instagram para no ser bloqueado. No sigas, des like, comentes ni escribas mensajes a nadie; solo lectura.
+- Para ante cualquier captcha, aviso de seguridad o petición de verificación y avísame.
+- Evita duplicados (mismo salón en varias fuentes) y descarta salones cerrados o que sean solo barberías, uñas o estética sin peluquería.
+- Trabaja por comarcas y ve guardando el CSV de forma incremental.
+
+ENTREGA
+Un CSV final (y una tabla resumen) con estas columnas:
+Nombre completo, Municipio, Comarca, Dirección completa, Instagram (@usuario y URL), Teléfono, Web, Nº trabajadores estimado, Cumple 3+ (Sí/Probable/No/No verificado), Evidencia, Fuente(s).
+Empieza completando los salones del CSV adjunto y después añade todos los que encuentres. Al terminar, dime cuántos salones hay por comarca y cuáles quedaron sin verificar.
