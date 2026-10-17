@@ -1134,7 +1134,7 @@ async function readSpreadsheet(file) {
   const isZip = buf[0] === 0x50 && buf[1] === 0x4b;
   if (!isZip) {
     let text = new TextDecoder('utf-8').decode(buf);
-    if (text.includes('�')) text = new TextDecoder('windows-1252').decode(buf);
+    if (text.includes('\uFFFD')) text = new TextDecoder('windows-1252').decode(buf);
     return parseCsvText(text);
   }
   return readXlsx(buf);
