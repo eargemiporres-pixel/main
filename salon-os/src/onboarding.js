@@ -7,6 +7,8 @@ const one = (db, sql, id) => Boolean(db.prepare(sql).get(id));
 export function onboardingSteps(db, salon) {
   const id = salon.id;
   const steps = [
+    { key: 'datos', label: 'Trae tus datos de tu programa anterior', hint: 'Clientas, servicios, citas y ventas desde Fresha, Booksy, Treatwell, Koibox, Excel…', href: '#/migrar',
+      done: one(db, "SELECT 1 FROM clients WHERE salon_id = ? AND import_source <> '' LIMIT 1", id) || one(db, "SELECT 1 FROM appointments WHERE salon_id = ? AND source LIKE 'migracion%' LIMIT 1", id) || one(db, "SELECT 1 FROM tickets WHERE salon_id = ? AND source LIKE 'migracion%' LIMIT 1", id) },
     { key: 'servicios', label: 'Carga tu menú de servicios', hint: 'Con precio y duración: así se calculan ocupación y tiempos.', href: '#/catalogo', done: one(db, 'SELECT 1 FROM services WHERE salon_id = ? LIMIT 1', id), action: 'starter' },
     { key: 'equipo', label: 'Añade a tu equipo', hint: 'Para ver el rendimiento de cada persona.', href: '#/equipo', done: one(db, 'SELECT 1 FROM employees WHERE salon_id = ? LIMIT 1', id) },
     { key: 'caja', label: 'Conecta la caja', hint: 'Importa las ventas de tu TPV o registra el primer cobro.', href: '#/importar', done: one(db, 'SELECT 1 FROM tickets WHERE salon_id = ? LIMIT 1', id) },

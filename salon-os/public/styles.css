@@ -442,3 +442,29 @@ dialog.wide { width: min(720px, calc(100vw - 32px)); }
   .g4, .g5 { grid-template-columns: minmax(0, 1fr); }
   .kpi .v { font-size: 28px; }
 }
+
+/* Columna principal con el aviso de la prueba gratuita encima. */
+.main-col { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; }
+.trial-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 40px; background: var(--amber-soft); color: var(--amber-ink); font-size: 14px; border-bottom: 1px solid #EBD9BC; }
+.trial-bar.expired { background: var(--red-soft); color: #8A2E20; border-bottom-color: #EBC9C2; }
+.auth-links { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink-2, var(--ink)); line-height: 1.45; }
+.check input { width: 20px; height: 20px; margin: 0; flex-shrink: 0; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+@media (max-width: 860px) { .trial-bar { padding: 10px 16px; } }
+@media print { .trial-bar { display: none; } }
+
+/* Traer mis datos */
+.source-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.source-btn { min-height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font: inherit; font-size: 15px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.source-btn:hover { border-color: #c9bfb2; }
+.source-btn[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #F4EFE8; }
+.help-box { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px; border-radius: 12px; background: var(--amber-soft); color: var(--ink); font-size: 14px; }
+.help-box ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.dropzone { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 120px; padding: 20px; border: 2px dashed #D6CCC1; border-radius: 16px; background: var(--surface); text-align: center; cursor: pointer; color: var(--muted); }
+.dropzone b { color: var(--plum); font-size: 16px; }
+.dropzone.over, .dropzone:hover { border-color: var(--plum); background: var(--plum-soft); }
+.dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.dropzone:focus-within { outline: 2px solid var(--plum); outline-offset: 2px; }
+.file-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }

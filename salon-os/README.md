@@ -163,7 +163,21 @@ node web-demo/build.mjs        # genera web-demo/dist, publicable en cualquier h
 
 ## Cómo entran los datos (sin teclear dos veces)
 
-1. **Importación CSV/Excel** (*Conectar TPV / importar*). Casi todos los TPV
+0. **Traer mis datos** (migración desde otro programa). El salón elige de dónde
+   viene (Fresha, Booksy, Treatwell, Koibox, Flowww, Bewe, Shore, Excel propio u
+   otro) y ve cómo descargar sus datos de ese programa. Después sube los
+   archivos, en Excel (`.xlsx`) o CSV, varios a la vez:
+   - Reconoce qué contiene cada archivo (clientas, servicios, productos, citas o
+     ventas) y qué columna es cada dato, en español o en inglés. Las columnas se
+     pueden corregir a mano.
+   - Enseña lo que va a entrar antes de guardar nada.
+   - Una clienta que ya existe (mismo teléfono o email) no se duplica: solo se
+     completan los datos que le faltan. Reimportar el mismo archivo no cambia nada.
+   - Las citas crean a los profesionales que falten y se enlazan con clientas y
+     servicios. Hay plantillas descargables para quien empieza de cero.
+   - El Excel se lee en el navegador, sin librerías. Los `.xls` antiguos hay que
+     guardarlos antes como `.xlsx` o `.csv`.
+1. **Importación CSV/Excel** (*Conectar TPV*). Casi todos los TPV
    y programas de peluquería exportan sus ventas. SalonPro reconoce las
    columnas por su nombre, en español o en inglés: fecha, ticket, cliente,
    teléfono, empleado, concepto, cantidad, importe, forma de pago, horas…
@@ -245,9 +259,33 @@ docker run -p 3000:3000 -v salon-data:/data \
 | `WA_VERIFY_TOKEN` | token para verificar el webhook de WhatsApp en Meta |
 | `WA_APP_SECRET` | *App secret* de Meta: comprueba la firma de cada aviso de WhatsApp |
 | `ANTHROPIC_API_KEY` | opcional: resumen de clientes con IA (requiere `npm install`) |
+| `PUBLIC_URL` | dirección pública (`https://app.tudominio.es`) para los enlaces de los emails |
+| `SIGNUP=0` | cierra el alta libre de salones (abierta por defecto) |
+| `TRIAL_DAYS` | días de prueba gratuita en el alta libre (30 por defecto) |
+| `RESEND_API_KEY`, `MAIL_FROM` | envío de emails de la plataforma (recuperar contraseña) con Resend |
+| `SUPPORT_EMAIL`, `SUPPORT_PHONE` | contacto del botón «Elegir plan» (el teléfono abre WhatsApp) |
+| `TERMS_URL`, `PRIVACY_URL` | enlaces a las condiciones y la privacidad en el alta |
 
 Copias de seguridad: basta con copiar el archivo `.db`, por ejemplo con
 `sqlite3 salon-os.db ".backup copia.db"`.
+
+## Cuentas, equipo y prueba gratuita
+
+- **Alta libre** (`/app#/registro`): cualquier salón crea su cuenta y empieza
+  en el plan *Prueba* durante `TRIAL_DAYS` días (30 por defecto). Se cierra con
+  `SIGNUP=0`; entonces la pantalla remite a la web comercial.
+- **Prueba caducada**: el salón puede consultar todo, pero no guardar cambios
+  hasta que el distribuidor le cambie el plan (Consola → *Plan*). Ahí también
+  se amplía la fecha de fin o se desactiva la cuenta.
+- **Usuarios del equipo** (*Ajustes → Usuarios y accesos*). Dos accesos:
+  - *Dueño/a*: ve todo.
+  - *Equipo*: agenda, cobros, caja, clientes y mensajes. No ve facturación,
+    rentabilidad, ajustes ni importaciones. El servidor lo impide aunque se
+    escriba la dirección a mano.
+- **Recuperar la contraseña**: con email configurado (`RESEND_API_KEY` y
+  `MAIL_FROM`) se envía un enlace de un solo uso, válido 24 horas. Sin email, el
+  dueño (para su equipo) o el distribuidor (para el dueño) generan ese enlace y
+  lo mandan por WhatsApp.
 
 ## Seguridad
 
@@ -255,7 +293,9 @@ Copias de seguridad: basta con copiar el archivo `.db`, por ejemplo con
   tests que lo comprueban.
 - Contraseñas con scrypt y sal.
 - Sesiones en una cookie `HttpOnly` y `SameSite=Lax`.
-- Límite de intentos de login.
+- Límite de intentos de login, de altas y de peticiones de contraseña.
+- Permisos por rol comprobados en el servidor; los enlaces de contraseña se
+  guardan cifrados y sirven una sola vez.
 - Las peticiones que modifican datos exigen JSON, lo que protege frente a
   CSRF.
 - Cabeceras de seguridad y política de contenido (CSP).
@@ -267,4 +307,3 @@ Copias de seguridad: basta con copiar el archivo `.db`, por ejemplo con
 - Comisiones por empleado y objetivos.
 - Informe mensual en PDF para cada salón, que puedes enviar como asesor.
 - Catálogo de tu producto y pedidos que el salón hace desde la app.
-- Usuarios de tipo empleado, con permisos limitados.

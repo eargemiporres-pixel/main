@@ -5,7 +5,13 @@ import { join, normalize, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { tx } from './db.js';
-import { hashPassword, verifyPassword, createSession, sessionUser, destroySession, parseCookies, newApiKey, loginAllowed, loginFailed } from './auth.js';
+import { hashPassword, verifyPassword, createSession, sessionUser, destroySession, parseCookies, newApiKey, loginAllowed, loginFailed, rateLimiter } from './auth.js';
+import {
+  AccountError, signup, signupOpen, trialInfo, trialDays, createResetToken, resetPassword, resetLink,
+  listTeamUsers, createTeamUser, updateTeamUser, deleteTeamUser
+} from './accounts.js';
+import { mailConfigured, sendPlatformEmail } from './mailer.js';
+import { migrate, migrationSchema } from './migration.js';
 import { dashboard } from './metrics.js';
 import { listClients, clientDetail } from './clients.js';
 import { importTickets, importHours, normGender, normTime } from './importer.js';
@@ -105,6 +111,7 @@ export function createApp(db) {
       loginFailed(ip);
       throw new HttpError(401, 'Email o contraseña incorrectos');
     }
+    if (!u.active) throw new HttpError(403, 'Tu usuario está desactivado. Habla con el dueño del salón.');
     const s = createSession(db, u.id);
     return { status: 200, body: { ok: true }, cookie: { value: s.token, maxAge: s.maxAge } };
   });
@@ -114,14 +121,72 @@ export function createApp(db) {
     return { status: 200, body: { ok: true }, cookie: { value: '', maxAge: 0 } };
   });
 
-  on('GET', '/api/me', 'user', ({ user }) => ({
-    user,
-    salon: user.salon_id ? salonById(user.salon_id) : null,
-    salons: user.role === 'admin' ? db.prepare('SELECT id, name, city FROM salons ORDER BY name').all() : [],
-    today: today()
-  }));
+  on('GET', '/api/me', 'team', ({ user }) => {
+    const salon = user.salon_id ? salonById(user.salon_id) : null;
+    return {
+      user,
+      salon,
+      trial: trialInfo(salon),
+      support: { email: process.env.SUPPORT_EMAIL || '', phone: process.env.SUPPORT_PHONE || '' },
+      salons: user.role === 'admin' ? db.prepare('SELECT id, name, city FROM salons ORDER BY name').all() : [],
+      today: today()
+    };
+  });
 
-  on('POST', '/api/password', 'user', ({ user, body }) => {
+  /* --- Alta libre y recuperar la contraseña --- */
+  const signups = rateLimiter(5, 3600000);
+  const forgots = rateLimiter(5, 3600000);
+  const account = (fn) => {
+    try { return fn(); } catch (err) { if (err instanceof AccountError) throw bad(err.message); throw err; }
+  };
+
+  on('POST', '/api/signup', 'none', ({ body, ip }) => {
+    if (!signupOpen()) throw new HttpError(403, 'El alta libre está cerrada. Pide tu prueba en la web y te damos acceso.');
+    if (body.website) return { status: 200, body: { ok: true } }; // campo trampa para bots
+    if (!signups.allowed(ip)) throw new HttpError(429, 'Has creado varias cuentas seguidas. Inténtalo más tarde.');
+    const { userId } = account(() => signup(db, body));
+    signups.hit(ip);
+    const s = createSession(db, userId);
+    return { status: 200, body: { ok: true, trial_days: trialDays() }, cookie: { value: s.token, maxAge: s.maxAge } };
+  });
+
+  on('POST', '/api/password/forgot', 'none', async ({ body, ip, origin }) => {
+    if (!forgots.allowed(ip)) throw new HttpError(429, 'Demasiadas peticiones. Espera unos minutos.');
+    forgots.hit(ip);
+    if (!mailConfigured()) {
+      return { ok: false, mail: false, message: 'El envío de emails aún no está activado. Pide a tu dueño o a tu distribuidor un enlace para cambiar la contraseña.' };
+    }
+    const u = db.prepare('SELECT id, name, email FROM users WHERE email = ? AND active = 1').get(str(body.email, 120).toLowerCase());
+    if (u) {
+      const link = resetLink(origin, createResetToken(db, u.id));
+      await sendPlatformEmail({
+        to: u.email,
+        subject: 'Cambia tu contraseña de SalonPro',
+        text: `Hola${u.name ? ` ${u.name}` : ''}:\n\nPara elegir una contraseña nueva, abre este enlace (caduca en 24 horas):\n${link}\n\nSi no lo has pedido tú, ignora este mensaje.\n\nSalonPro`
+      });
+    }
+    // Misma respuesta exista o no la cuenta, para no revelar qué emails están dados de alta.
+    return { ok: true, mail: true, message: 'Si hay una cuenta con ese email, te hemos enviado un enlace para cambiar la contraseña.' };
+  });
+
+  on('POST', '/api/password/reset', 'none', ({ body }) => {
+    const userId = account(() => resetPassword(db, body.token, body.password));
+    const s = createSession(db, userId);
+    return { status: 200, body: { ok: true }, cookie: { value: s.token, maxAge: s.maxAge } };
+  });
+
+  /* --- Usuarios del equipo (solo el dueño) --- */
+  on('GET', '/api/team/users', 'user', (ctx) => ({ users: listTeamUsers(db, salonFor(ctx).id), mail: mailConfigured() }));
+  on('POST', '/api/team/users', 'user', (ctx) => account(() => createTeamUser(db, salonFor(ctx).id, ctx.body)));
+  on('PUT', '/api/team/users/:id', 'user', (ctx) => account(() => updateTeamUser(db, salonFor(ctx).id, Number(ctx.params.id), ctx.user.id, ctx.body)));
+  on('DELETE', '/api/team/users/:id', 'user', (ctx) => account(() => deleteTeamUser(db, salonFor(ctx).id, Number(ctx.params.id), ctx.user.id)));
+  on('POST', '/api/team/users/:id/reset-link', 'user', (ctx) => {
+    const u = db.prepare('SELECT id FROM users WHERE id = ? AND salon_id = ?').get(Number(ctx.params.id), salonFor(ctx).id);
+    if (!u) throw notFound('Usuario no encontrado');
+    return { link: resetLink(ctx.origin, createResetToken(db, u.id)) };
+  });
+
+  on('POST', '/api/password', 'team', ({ user, body }) => {
     const u = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.id);
     if (!verifyPassword(body.current ?? '', u.password_hash)) throw bad('La contraseña actual no es correcta');
     if (String(body.next ?? '').length < 8) throw bad('La nueva contraseña debe tener al menos 8 caracteres');
@@ -138,11 +203,11 @@ export function createApp(db) {
   });
 
   /* --- Clientes --- */
-  on('GET', '/api/clients', 'user', (ctx) => {
+  on('GET', '/api/clients', 'team', (ctx) => {
     const salon = salonFor(ctx);
     return listClients(db, salon.id, { q: ctx.query.get('q') || '', filter: ctx.query.get('filter') || 'todos' });
   });
-  on('GET', '/api/clients/:id', 'user', (ctx) => {
+  on('GET', '/api/clients/:id', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const d = clientDetail(db, salon.id, Number(ctx.params.id));
     if (!d) throw notFound('Cliente no encontrado');
@@ -155,13 +220,13 @@ export function createApp(db) {
     if (!name) throw bad('El nombre es obligatorio');
     return [name, str(b.phone, 40), str(b.email, 120), normGender(b.gender), str(b.notes, 2000)];
   };
-  on('POST', '/api/clients', 'user', (ctx) => {
+  on('POST', '/api/clients', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const r = db.prepare('INSERT INTO clients (salon_id, name, phone, email, gender, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(salon.id, ...clientFields(ctx.body), today());
     return { id: Number(r.lastInsertRowid) };
   });
-  on('PUT', '/api/clients/:id', 'user', (ctx) => {
+  on('PUT', '/api/clients/:id', 'team', (ctx) => {
     const salon = salonFor(ctx);
     owned('clients', Number(ctx.params.id), salon.id);
     db.prepare('UPDATE clients SET name = ?, phone = ?, email = ?, gender = ?, notes = ? WHERE id = ?').run(...clientFields(ctx.body), Number(ctx.params.id));
@@ -169,7 +234,7 @@ export function createApp(db) {
   });
 
   /* --- Catálogo: equipo, servicios, productos --- */
-  on('GET', '/api/catalog', 'user', (ctx) => {
+  on('GET', '/api/catalog', 'team', (ctx) => {
     const salon = salonFor(ctx);
     return {
       employees: db.prepare('SELECT * FROM employees WHERE salon_id = ? ORDER BY active DESC, name').all(salon.id),
@@ -207,7 +272,7 @@ export function createApp(db) {
   }
 
   /* --- Cobro manual (para salones sin TPV integrado) --- */
-  on('POST', '/api/tickets', 'user', (ctx) => {
+  on('POST', '/api/tickets', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const b = ctx.body;
     const date = b.date ? str(b.date, 10) : today();
@@ -278,12 +343,12 @@ export function createApp(db) {
       recentClosings: db.prepare('SELECT date, expected, counted, diff FROM cash_closings WHERE salon_id = ? ORDER BY date DESC LIMIT 7').all(salon.id)
     };
   }
-  on('GET', '/api/cash', 'user', (ctx) => {
+  on('GET', '/api/cash', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const date = isDate(ctx.query.get('date')) ? ctx.query.get('date') : today();
     return cashDay(salon, date);
   });
-  on('POST', '/api/cash/movements', 'user', (ctx) => {
+  on('POST', '/api/cash/movements', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const b = ctx.body;
     const date = isDate(b.date) ? b.date : today();
@@ -301,7 +366,7 @@ export function createApp(db) {
     db.prepare('DELETE FROM cash_movements WHERE id = ?').run(m.id);
     return { ok: true };
   });
-  on('POST', '/api/cash/close', 'user', (ctx) => {
+  on('POST', '/api/cash/close', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const date = isDate(ctx.body.date) ? ctx.body.date : today();
     const counted = money(ctx.body.counted, 'Efectivo contado');
@@ -379,6 +444,13 @@ export function createApp(db) {
     };
   });
 
+  /* --- Traer los datos de otro programa --- */
+  on('GET', '/api/migrate/schema', 'user', () => migrationSchema());
+  on('POST', '/api/migrate', 'user', (ctx) => {
+    const b = ctx.body;
+    return migrate(db, salonFor(ctx), { kind: str(b.kind, 20), rows: b.rows, mapping: b.mapping, source: str(b.source, 20), dryRun: b.dryRun !== false });
+  });
+
   /* --- Ajustes del salón --- */
   on('GET', '/api/settings', 'user', (ctx) => salonFor(ctx));
   on('PUT', '/api/settings', 'user', (ctx) => {
@@ -411,8 +483,9 @@ export function createApp(db) {
     if (String(body.owner_password ?? '').length < 8) throw bad('La contraseña debe tener al menos 8 caracteres');
     if (db.prepare('SELECT 1 FROM users WHERE email = ?').get(email)) throw bad('Ya existe un usuario con ese email');
     return tx(db, () => {
-      const s = db.prepare('INSERT INTO salons (name, city, plan, monthly_fee, api_key) VALUES (?, ?, ?, ?, ?)')
-        .run(name, str(body.city, 80), str(body.plan, 40) || 'Base', money(body.monthly_fee ?? 0, 'Cuota'), newApiKey());
+      const plan = str(body.plan, 40) || 'Base';
+      const s = db.prepare('INSERT INTO salons (name, city, plan, monthly_fee, api_key, trial_ends) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(name, str(body.city, 80), plan, money(body.monthly_fee ?? 0, 'Cuota'), newApiKey(), plan === 'Prueba' ? addDaysIso(today(), trialDays()) : null);
       const sid = Number(s.lastInsertRowid);
       db.prepare("INSERT INTO users (email, name, password_hash, role, salon_id) VALUES (?, ?, ?, 'owner', ?)")
         .run(email, str(body.owner_name, 120), hashPassword(body.owner_password), sid);
@@ -426,9 +499,23 @@ export function createApp(db) {
     const minPm = body.min_price_minute != null && body.min_price_minute !== '' ? Number(body.min_price_minute) : s.min_price_minute;
     if (!(minPm > 0 && minPm < 20)) throw bad('Precio mínimo por minuto no válido');
     const active = body.active === undefined ? s.active : body.active === false ? 0 : 1;
-    db.prepare('UPDATE salons SET plan = ?, monthly_fee = ?, active = ?, min_price_minute = ? WHERE id = ?')
-      .run(str(body.plan, 40) || s.plan, money(body.monthly_fee ?? s.monthly_fee, 'Cuota'), active, minPm, s.id);
+    let trialEnds = s.trial_ends;
+    if (body.trial_ends !== undefined) {
+      if (body.trial_ends && !isDate(body.trial_ends)) throw bad('Fecha de fin de prueba no válida');
+      trialEnds = body.trial_ends || null;
+    }
+    db.prepare('UPDATE salons SET plan = ?, monthly_fee = ?, active = ?, min_price_minute = ?, trial_ends = ? WHERE id = ?')
+      .run(str(body.plan, 40) || s.plan, money(body.monthly_fee ?? s.monthly_fee, 'Cuota'), active, minPm, trialEnds, s.id);
     return { ok: true };
+  });
+  on('GET', '/api/admin/salons/:id/users', 'admin', ({ params }) => {
+    if (!salonById(Number(params.id))) throw notFound();
+    return { users: listTeamUsers(db, Number(params.id)) };
+  });
+  on('POST', '/api/admin/users/:id/reset-link', 'admin', ({ params, origin }) => {
+    const u = db.prepare("SELECT id FROM users WHERE id = ? AND role != 'admin'").get(Number(params.id));
+    if (!u) throw notFound('Usuario no encontrado');
+    return { link: resetLink(origin, createResetToken(db, u.id)) };
   });
 
   /* --- API de integración para TPVs (clave por salón) --- */
@@ -461,7 +548,7 @@ export function createApp(db) {
   const durationOf = (salonId, ids) => ids.reduce((sum, id) => sum + (db.prepare('SELECT duration_min FROM services WHERE id = ? AND salon_id = ?').get(id, salonId)?.duration_min || 0), 0);
   const agendaError = (fn) => { try { return fn(); } catch (err) { if (err instanceof HttpError) throw err; throw bad(err.message); } };
 
-  on('GET', '/api/agenda', 'user', (ctx) => {
+  on('GET', '/api/agenda', 'team', (ctx) => {
     const salon = ensureBookingSetup(db, salonFor(ctx));
     const from = isDate(ctx.query.get('from')) ? ctx.query.get('from') : nowLocal().date;
     const days = Math.max(1, Math.min(31, Number(ctx.query.get('days')) || 7));
@@ -474,14 +561,14 @@ export function createApp(db) {
       bookingSlug: salon.booking_slug
     };
   });
-  on('GET', '/api/agenda/slots', 'user', (ctx) => {
+  on('GET', '/api/agenda/slots', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const ids = parseServiceIds(ctx.query.get('services'));
     const duration = durationOf(salon.id, ids);
     if (!duration) throw bad('Elige al menos un servicio');
     return { duration, slots: availableSlots(db, salon, { date: ctx.query.get('date'), duration, employeeId: Number(ctx.query.get('employee')) || null, ignoreId: Number(ctx.query.get('ignore')) || null }) };
   });
-  on('POST', '/api/appointments', 'user', (ctx) => agendaError(() => {
+  on('POST', '/api/appointments', 'team', (ctx) => agendaError(() => {
     const salon = salonFor(ctx);
     const b = ctx.body;
     let client = null;
@@ -498,13 +585,13 @@ export function createApp(db) {
       serviceIds: b.service_ids, notes: str(b.notes, 500), status: b.status === 'pendiente' ? 'pendiente' : 'confirmada', source: 'salon'
     });
   }));
-  on('GET', '/api/appointments/:id', 'user', (ctx) => {
+  on('GET', '/api/appointments/:id', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const a = getAppointment(db, salon.id, Number(ctx.params.id));
     if (!a) throw notFound('Cita no encontrada');
     return a;
   });
-  on('PUT', '/api/appointments/:id', 'user', (ctx) => agendaError(() => {
+  on('PUT', '/api/appointments/:id', 'team', (ctx) => agendaError(() => {
     const salon = salonFor(ctx);
     const a = getAppointment(db, salon.id, Number(ctx.params.id));
     if (!a) throw notFound('Cita no encontrada');
@@ -519,7 +606,7 @@ export function createApp(db) {
     return getAppointment(db, salon.id, a.id);
   }));
   /* Empieza el servicio de una cita: arranca el cronómetro del cobro. */
-  on('POST', '/api/appointments/:id/start', 'user', (ctx) => {
+  on('POST', '/api/appointments/:id/start', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const a = getAppointment(db, salon.id, Number(ctx.params.id));
     if (!a) throw notFound('Cita no encontrada');
@@ -696,7 +783,7 @@ export function createApp(db) {
   });
 
   /* --- Servicios en curso (cronómetro) --- */
-  on('GET', '/api/visits/open', 'user', (ctx) => {
+  on('GET', '/api/visits/open', 'team', (ctx) => {
     const salon = salonFor(ctx);
     return {
       visits: db.prepare(`SELECT v.*, e.name AS employee_name FROM open_visits v LEFT JOIN employees e ON e.id = v.employee_id
@@ -704,7 +791,7 @@ export function createApp(db) {
       now: new Date().toISOString()
     };
   });
-  on('POST', '/api/visits/open', 'user', (ctx) => {
+  on('POST', '/api/visits/open', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const b = ctx.body;
     const employee = b.employee_id ? owned('employees', Number(b.employee_id), salon.id) : null;
@@ -722,7 +809,7 @@ export function createApp(db) {
       .run(salon.id, clientId, clientName, employee?.id ?? null, JSON.stringify(lines), started);
     return { id: Number(r.lastInsertRowid), started_at: started };
   });
-  on('DELETE', '/api/visits/open/:id', 'user', (ctx) => {
+  on('DELETE', '/api/visits/open/:id', 'team', (ctx) => {
     const salon = salonFor(ctx);
     owned('open_visits', Number(ctx.params.id), salon.id);
     db.prepare('DELETE FROM open_visits WHERE id = ?').run(Number(ctx.params.id));
@@ -733,15 +820,15 @@ export function createApp(db) {
   const CHANNELS = ['whatsapp', 'email', 'sms'];
   const authorName = (user) => user.name || user.email;
 
-  on('GET', '/api/messages/summary', 'user', (ctx) => {
+  on('GET', '/api/messages/summary', 'team', (ctx) => {
     const salon = salonFor(ctx);
     return db.prepare("SELECT COALESCE(SUM(unread), 0) AS unread, COALESCE(SUM(status = 'abierta'), 0) AS open FROM conversations WHERE salon_id = ?").get(salon.id);
   });
-  on('GET', '/api/conversations', 'user', (ctx) => {
+  on('GET', '/api/conversations', 'team', (ctx) => {
     const salon = salonFor(ctx);
     return { ...listConversations(db, salon.id, { filter: ctx.query.get('filter') || 'abiertas', q: ctx.query.get('q') || '' }), channels: channelStatus(channelsFor(db, salon.id)) };
   });
-  on('GET', '/api/conversations/:id', 'user', (ctx) => {
+  on('GET', '/api/conversations/:id', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const d = conversationDetail(db, salon.id, Number(ctx.params.id));
     if (!d) throw notFound('Conversación no encontrada');
@@ -756,7 +843,7 @@ export function createApp(db) {
     };
   });
   /* Mensaje nuevo a un cliente (o a un teléfono/email). Crea la conversación si no existe. */
-  on('POST', '/api/conversations', 'user', async (ctx) => {
+  on('POST', '/api/conversations', 'team', async (ctx) => {
     const salon = salonFor(ctx);
     const b = ctx.body;
     const channel = CHANNELS.includes(b.channel) ? b.channel : 'whatsapp';
@@ -776,12 +863,12 @@ export function createApp(db) {
     const sent = await sendMessage(db, salon, conv, b.text, { author: authorName(ctx.user), template: str(b.template, 40) || null });
     return { id: conv.id, ...sent };
   });
-  on('POST', '/api/conversations/:id/messages', 'user', async (ctx) => {
+  on('POST', '/api/conversations/:id/messages', 'team', async (ctx) => {
     const salon = salonFor(ctx);
     const conv = owned('conversations', Number(ctx.params.id), salon.id);
     return sendMessage(db, salon, conv, ctx.body.text, { author: authorName(ctx.user), template: str(ctx.body.template, 40) || null });
   });
-  on('PUT', '/api/conversations/:id', 'user', (ctx) => {
+  on('PUT', '/api/conversations/:id', 'team', (ctx) => {
     const salon = salonFor(ctx);
     const conv = owned('conversations', Number(ctx.params.id), salon.id);
     const status = ['abierta', 'pendiente', 'cerrada'].includes(ctx.body.status) ? ctx.body.status : conv.status;
@@ -794,7 +881,7 @@ export function createApp(db) {
     return { ok: true };
   });
 
-  on('GET', '/api/templates', 'user', (ctx) => {
+  on('GET', '/api/templates', 'team', (ctx) => {
     const salon = salonFor(ctx);
     ensureTemplates(db, salon.id);
     return { templates: db.prepare('SELECT * FROM message_templates WHERE salon_id = ? ORDER BY id').all(salon.id) };
@@ -823,13 +910,13 @@ export function createApp(db) {
     return { ok: true };
   });
 
-  on('GET', '/api/reminders', 'user', (ctx) => {
+  on('GET', '/api/reminders', 'team', (ctx) => {
     const salon = salonFor(ctx);
     return { groups: reminderSuggestions(db, salon), channels: channelStatus(channelsFor(db, salon.id)) };
   });
   /* Envía recordatorios. Con WhatsApp conectado salen solos; en modo manual
      se devuelven los enlaces para enviarlos uno a uno desde el móvil. */
-  on('POST', '/api/reminders/send', 'user', async (ctx) => {
+  on('POST', '/api/reminders/send', 'team', async (ctx) => {
     const salon = salonFor(ctx);
     const items = Array.isArray(ctx.body.items) ? ctx.body.items.slice(0, 200) : [];
     if (!items.length) throw bad('Elige al menos un cliente');
@@ -844,7 +931,7 @@ export function createApp(db) {
     return { results };
   });
 
-  on('POST', '/api/clients/:id/insights/ai', 'user', async (ctx) => {
+  on('POST', '/api/clients/:id/insights/ai', 'team', async (ctx) => {
     const salon = salonFor(ctx);
     const c = owned('clients', Number(ctx.params.id), salon.id);
     const messages = db.prepare(`SELECT m.direction, m.body, m.created_at FROM messages m JOIN conversations cv ON cv.id = m.conversation_id
@@ -961,7 +1048,11 @@ export function createApp(db) {
   });
 
   on('GET', '/api/health', 'none', () => ({ ok: true, today: today() }));
-  on('GET', '/api/config', 'none', async () => ({ demo: process.env.DEMO === '1', ai: await aiAvailable(), landing: process.env.WEB_DEMO !== '1' }));
+  on('GET', '/api/config', 'none', async () => ({
+    demo: process.env.DEMO === '1', ai: await aiAvailable(), landing: process.env.WEB_DEMO !== '1',
+    signup: signupOpen(), trial_days: trialDays(), mail: mailConfigured(),
+    terms_url: process.env.TERMS_URL || '', privacy_url: process.env.PRIVACY_URL || ''
+  }));
 
   /* ---------- Despacho ---------- */
 
@@ -1015,6 +1106,7 @@ export function createApp(db) {
         params: Object.fromEntries(r.keys.map((k, i) => [k, m[i + 1]])),
         cookies,
         ip: req.socket.remoteAddress || '',
+        origin: process.env.PUBLIC_URL ? process.env.PUBLIC_URL.replace(/\/+$/, '') : `${req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http'}://${req.headers.host || 'localhost'}`,
         body: {}
       };
       if (req.method !== 'GET') {
@@ -1027,10 +1119,20 @@ export function createApp(db) {
         ctx.headers = req.headers;
         if (typeof ctx.body !== 'object' || ctx.body === null || Array.isArray(ctx.body)) throw bad('JSON no válido');
       }
-      if (r.auth === 'user' || r.auth === 'admin') {
+      if (r.auth === 'user' || r.auth === 'admin' || r.auth === 'team') {
         ctx.user = sessionUser(db, cookies.sid);
         if (!ctx.user) throw new HttpError(401, 'Inicia sesión');
         if (r.auth === 'admin' && ctx.user.role !== 'admin') throw new HttpError(403, 'Solo para el distribuidor');
+        if (r.auth === 'user' && ctx.user.role === 'staff') throw new HttpError(403, 'Tu usuario no tiene acceso a esta sección. Pídeselo al dueño del salón.');
+        if (ctx.user.role !== 'admin') {
+          const own = salonById(ctx.user.salon_id);
+          if (!own || !own.active) throw new HttpError(403, 'Esta cuenta está desactivada. Escríbenos para reactivarla.');
+          const trial = trialInfo(own);
+          const always = ['/api/logout', '/api/password'];
+          if (trial?.expired && req.method !== 'GET' && !always.includes(url.pathname)) {
+            throw new HttpError(402, 'Tu prueba gratuita ha terminado. Tus datos siguen guardados: elige un plan para seguir trabajando.');
+          }
+        }
       } else if (r.auth === 'apikey') {
         const key = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
         ctx.salon = key ? db.prepare('SELECT * FROM salons WHERE api_key = ? AND active = 1').get(key) : null;

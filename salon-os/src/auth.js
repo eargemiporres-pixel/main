@@ -31,8 +31,8 @@ export function createSession(db, userId) {
 
 export function sessionUser(db, token) {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
-  return db.prepare(`SELECT u.id, u.email, u.name, u.role, u.salon_id FROM sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.token = ? AND s.expires_at > ?`).get(token, new Date().toISOString()) || null;
+  return db.prepare(`SELECT u.id, u.email, u.name, u.role, u.salon_id, u.employee_id FROM sessions s JOIN users u ON u.id = s.user_id
+      WHERE s.token = ? AND s.expires_at > ? AND u.active = 1`).get(token, new Date().toISOString()) || null;
 }
 
 export function destroySession(db, token) {
@@ -48,16 +48,23 @@ export function parseCookies(header) {
   return out;
 }
 
-/* Límite sencillo de intentos de login por IP (en memoria). */
-const attempts = new Map();
-export function loginAllowed(ip) {
-  const now = Date.now();
-  const a = (attempts.get(ip) || []).filter((t) => now - t < 15 * 60000);
-  attempts.set(ip, a);
-  return a.length < 10;
+/* Límite sencillo de intentos por IP (en memoria): login, altas y avisos. */
+export function rateLimiter(max, windowMs) {
+  const hits = new Map();
+  return {
+    allowed(ip) {
+      const now = Date.now();
+      const a = (hits.get(ip) || []).filter((t) => now - t < windowMs);
+      hits.set(ip, a);
+      return a.length < max;
+    },
+    hit(ip) {
+      const a = hits.get(ip) || [];
+      a.push(Date.now());
+      hits.set(ip, a);
+    }
+  };
 }
-export function loginFailed(ip) {
-  const a = attempts.get(ip) || [];
-  a.push(Date.now());
-  attempts.set(ip, a);
-}
+const logins = rateLimiter(10, 15 * 60000);
+export const loginAllowed = (ip) => logins.allowed(ip);
+export const loginFailed = (ip) => logins.hit(ip);

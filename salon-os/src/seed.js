@@ -98,6 +98,8 @@ export function seedDemo(db, { password = 'demo1234' } = {}) {
         speed: [1.08, 0.94, 1.0, 1.12, 0.97][ei % 5],
         id: Number(db.prepare('INSERT INTO employees (salon_id, name, role) VALUES (?, ?, ?)').run(sid, name, role).lastInsertRowid), retail, barber: /barber/i.test(role)
       }));
+      // Usuario de equipo de ejemplo (solo ve agenda, cobros, caja, clientes y mensajes).
+      if (si === 0) db.prepare("INSERT INTO users (email, name, password_hash, role, salon_id, employee_id) VALUES ('equipo@demo.com', 'Laura M.', ?, 'staff', ?, ?)").run(pw, sid, emps[0].id);
 
       const mains = cfg.barber ? BARBER_SERVICES : SALON_SERVICES;
       const addons = cfg.barber ? BARBER_ADDONS : SALON_ADDONS;

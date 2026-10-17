@@ -3,7 +3,7 @@
    agrupa las filas por ticket. Formato recomendado: una fila por línea de
    ticket (servicio o producto). */
 
-const key = (s) => String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+export const key = (s) => String(s ?? '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 
 export const FIELDS = {
@@ -100,15 +100,20 @@ function lineType(v) {
 
 export function csvToTickets(text) {
   const { rows, delimiter } = parseCsv(text);
+  return { delimiter, ...rowsToTickets(rows) };
+}
+
+/* Igual que csvToTickets, pero a partir de filas ya leídas (CSV o Excel). */
+export function rowsToTickets(rows, forced = null) {
   if (rows.length < 2) return { error: 'El archivo está vacío o solo tiene cabecera.' };
   const headers = rows[0];
-  const mapping = mapHeaders(headers);
+  const mapping = forced || mapHeaders(headers);
   const missing = ['date', 'name'].filter((f) => mapping[f] == null);
   if (mapping.price == null && mapping.total == null) missing.push('importe');
   if (missing.length) {
     return { error: `No encuentro las columnas: ${missing.map((m) => (m === 'date' ? 'fecha' : m === 'name' ? 'concepto' : m)).join(', ')}.`, headers, mapping };
   }
-  const get = (r, f) => (mapping[f] != null ? (r[mapping[f]] ?? '').trim() : '');
+  const get = (r, f) => (mapping[f] != null ? String(r[mapping[f]] ?? '').trim() : '');
   const tickets = new Map();
   const warnings = [];
   rows.slice(1).forEach((r, i) => {
@@ -157,7 +162,6 @@ export function csvToTickets(text) {
     }
   }
   return {
-    delimiter,
     headers,
     mapping: Object.fromEntries(Object.entries(mapping).map(([f, i]) => [f, headers[i]])),
     rowCount: rows.length - 1,

@@ -44,7 +44,7 @@ export function networkOverview(db, ref) {
     const g = growth(db, s.id, ref);
     const gPrev = growth(db, s.id, prevRef);
     const signal = purchaseSignal(db, s.id);
-    const owner = db.prepare("SELECT email, name FROM users WHERE salon_id = ? AND role = 'owner' ORDER BY id LIMIT 1").get(s.id);
+    const owner = db.prepare("SELECT id, email, name FROM users WHERE salon_id = ? AND role = 'owner' ORDER BY id LIMIT 1").get(s.id);
     // El consumo mensual oscila con los pedidos: para comparar salones se usa
     // el de los 90 días que terminan en el mes consultado.
     const end = addDays(range.to, -1) < today() ? addDays(range.to, -1) : today();
@@ -62,7 +62,7 @@ export function networkOverview(db, ref) {
     const opportunity = m.occupancy != null && m.occupancy >= 0.8 && (g.monthly ?? 0) >= 0
       ? `Ocupación del ${Math.round(m.occupancy * 100)} %: margen para subir precios o ampliar equipo.` : null;
     return {
-      id: s.id, name: s.name, city: s.city, plan: s.plan, monthlyFee: s.monthly_fee, active: !!s.active,
+      id: s.id, name: s.name, city: s.city, plan: s.plan, monthlyFee: s.monthly_fee, active: !!s.active, trialEnds: s.trial_ends || null, signupSource: s.signup_source || 'distribuidor', phone: s.phone || '',
       owner,
       revenue: m.revenue, prevRevenue: prev.revenue, growth: g.monthly, avgTicket: m.avgTicket,
       occupancy: m.occupancy, consumptionPct: consumption90, hourlyRate: m.hourlyRate,

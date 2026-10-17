@@ -49,6 +49,16 @@ copia diaria (Render permite instantáneas del disco).
 
 ## 2. Tu flujo comercial
 
+**Dos maneras de entrar:**
+- **Alta libre:** el salón crea su cuenta en `/app#/registro` y empieza su
+  prueba de 30 días él solo. Lo ves en la consola con la etiqueta *Alta web*.
+  Llámale en los primeros días para ayudarle con *Traer mis datos*.
+- **Alta contigo:** a partir de una solicitud de la web (pasos de abajo).
+
+Antes de abrir el alta libre al público, rellena `SUPPORT_PHONE` o
+`SUPPORT_EMAIL` (botón «Elegir plan»), `TERMS_URL` y `PRIVACY_URL`. Si
+prefieres dar tú todos los accesos, pon `SIGNUP=0`.
+
 1. Comparte la web (`/`). Las solicitudes llegan a **Consola → Solicitudes de prueba**.
 2. Llama al salón, cambia el estado a *Contactado* y pulsa **Dar de alta**: se crea
    el salón en plan *Prueba* (0 €) con una contraseña inicial que le envías.
@@ -56,7 +66,9 @@ copia diaria (Render permite instantáneas del disco).
    primera sesión (unos 45 minutos):
    - **Cargar menú típico** y ajustar los precios a los suyos.
    - Añadir al equipo.
-   - Importar las ventas del último año desde su TPV (*Conectar TPV / importar*).
+   - **Traer sus datos** de su programa actual (*Traer mis datos*): clientas,
+     servicios, citas y ventas desde Fresha, Booksy, Treatwell, Koibox, Excel…
+   - Importar las ventas del último año desde su TPV (*Conectar TPV*).
      Si no puede exportarlas, empieza a cobrar desde *Nuevo cobro*.
    - Registrar las horas del mes.
    - Conectar WhatsApp (paso 3) o usar el modo manual.
@@ -126,7 +138,7 @@ Authorization: Bearer <clave del salón>
 { "messages": [{ "channel": "instagram", "from": "usuario", "name": "Ana", "body": "Hola…", "id": "abc" }] }
 ```
 
-Con Make o Zapier se conecta en minutos. La clave está en *Conectar TPV / importar*.
+Con Make o Zapier se conecta en minutos. La clave está en *Conectar TPV*.
 
 ## 6. Reporte mensual para cada salón
 

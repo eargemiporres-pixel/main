@@ -33,6 +33,7 @@ const ICONS = {
   catalogo: 'M4 5h16M4 12h16M4 19h10',
   pedidos: 'M4 7h13l3 4v6h-2M4 7v10h2M4 7l1-3h10l2 3M9 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4M11 17h4',
   importar: 'M12 3v12M7 10l5 5 5-5M4 21h16',
+  migrar: 'M4 4h7l2 3h7v13H4zM12 10v7M9 14l3 3 3-3',
   ajustes: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   consola: 'M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6',
   mensajes: 'M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z',
@@ -56,6 +57,10 @@ const S = {
   consoleRef: null
 };
 const isAdmin = () => S.me?.user.role === 'admin';
+const isStaff = () => S.me?.user.role === 'staff';
+// Secciones que ve el equipo (rol «Equipo»): el día a día, sin números del negocio.
+const STAFF_PAGES = ['agenda', 'cobro', 'caja', 'clientes', 'mensajes'];
+const PUBLIC_PAGES = ['registro', 'recuperar', 'restablecer'];
 
 async function api(path, { method = 'GET', body, salon = true } = {}) {
   let url = path;
@@ -176,7 +181,7 @@ const go = (hash) => { location.hash = hash; };
 const SALON_NAV = [
   ['panel', 'Panel'], ['agenda', 'Agenda'], ['cobro', 'Nuevo cobro'], ['caja', 'Caja'], ['clientes', 'Clientes'], ['mensajes', 'Mensajes'],
   ['equipo', 'Equipo y horas'], ['catalogo', 'Servicios y productos'], ['tiempos', 'Tiempos y rentabilidad'], ['pedidos', 'Pedidos de producto'],
-  ['importar', 'Conectar TPV / importar'], ['ajustes', 'Ajustes']
+  ['migrar', 'Traer mis datos'], ['importar', 'Conectar TPV'], ['ajustes', 'Ajustes']
 ];
 const VIEWS = {};
 
@@ -185,7 +190,9 @@ async function render() {
   if (!S.me) {
     try { S.me = await fetch('/api/me', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)); } catch { S.me = null; }
   }
-  if (!S.me) return renderLogin(app);
+  const hash = parseHash();
+  if (hash.page === 'restablecer') return renderAuth(app, 'restablecer', hash.query);
+  if (!S.me) return renderAuth(app, PUBLIC_PAGES.includes(hash.page) ? hash.page : 'entrar', hash.query);
   if (!S.config) S.config = await fetch('/api/config').then((r) => r.json()).catch(() => ({}));
   if (!S.ref) {
     // Los primeros días de un mes casi no tienen datos: se abre el mes anterior.
@@ -203,14 +210,16 @@ async function render() {
       S.salonId = S.me.salons[0]?.id || null;
       if (!S.salonId) page = 'consola';
     }
-  } else if (!page || page === 'consola') page = 'panel';
-  if (!VIEWS[page]) page = isAdmin() ? 'consola' : 'panel';
+  } else if (!page || page === 'consola' || PUBLIC_PAGES.includes(page)) page = isStaff() ? 'agenda' : 'panel';
+  if (!VIEWS[page]) page = isAdmin() ? 'consola' : isStaff() ? 'agenda' : 'panel';
+  if (isStaff() && !STAFF_PAGES.includes(page)) page = 'agenda';
+  const nav = isStaff() ? SALON_NAV.filter(([p]) => STAFF_PAGES.includes(p)) : SALON_NAV;
 
   document.body.classList.toggle('console', page === 'consola');
   const salonName = isAdmin() ? S.me.salons.find((s) => s.id === S.salonId)?.name : S.me.salon?.name;
   app.innerHTML = `<div class="shell">
     <aside class="side">
-      <div class="brand"><b>SalonPro</b><span>${esc(isAdmin() ? 'Consola del distribuidor' : salonName || '')}</span></div>
+      <div class="brand"><b>SalonPro</b><span>${esc(isAdmin() ? 'Consola del distribuidor' : salonName || '')}${isStaff() ? ` · ${esc(S.me.user.name || S.me.user.email)}` : ''}</span></div>
       ${isAdmin() ? `<nav class="nav" aria-label="Distribuidor">
           <a href="#/consola" ${page === 'consola' ? 'aria-current="page"' : ''}>${icon('consola')}Red de salones</a>
         </nav>
@@ -218,16 +227,26 @@ async function render() {
         <select id="salonPick" aria-label="Salón">${S.me.salons.map((s) => `<option value="${s.id}" ${s.id === S.salonId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
         <nav class="nav" aria-label="Reporte"><a href="#/reporte" ${page === 'reporte' ? 'aria-current="page"' : ''}>${icon('reporte')}Reporte del salón</a></nav>` : ''}
       <nav class="nav" aria-label="Salón">
-        ${SALON_NAV.map(([p, label]) => `<a href="#/${p}" ${page === p ? 'aria-current="page"' : ''}>${icon(p)}${label}${p === 'mensajes' ? '<span class="nav-badge hidden" id="unreadBadge"></span>' : ''}</a>`).join('')}
+        ${nav.map(([p, label]) => `<a href="#/${p}" ${page === p ? 'aria-current="page"' : ''}>${icon(p)}${label}${p === 'mensajes' ? '<span class="nav-badge hidden" id="unreadBadge"></span>' : ''}</a>`).join('')}
       </nav>
       <div class="side-foot">
         <div class="side-card"><strong><span class="dot"></span> Datos al día</strong>Cada cobro actualiza métricas, clientes y caja al momento.</div>
+        ${isStaff() ? '<button type="button" class="link-btn" id="myPassword">Cambiar mi contraseña</button>' : ''}
         <button type="button" class="link-btn" id="logout">Cerrar sesión</button>
       </div>
     </aside>
-    <main class="main" id="main"><div class="loading">Cargando…</div></main>
+    <div class="main-col">${trialBar()}<main class="main" id="main"><div class="loading">Cargando…</div></main></div>
   </div>`;
   $('#logout').onclick = async () => { await api('/api/logout', { method: 'POST', body: {} }).catch(() => {}); S.me = null; store.clear(); go('#/'); render(); };
+  const myPw = $('#myPassword');
+  if (myPw) myPw.onclick = () => openForm({
+    title: 'Cambiar mi contraseña',
+    fields: [
+      { name: 'current', label: 'Contraseña actual', type: 'password', required: true, autocomplete: 'current-password' },
+      { name: 'next', label: 'Nueva contraseña', type: 'password', required: true, hint: 'Mínimo 8 caracteres.', autocomplete: 'new-password' }
+    ],
+    onSubmit: async (v) => { await api('/api/password', { method: 'POST', body: v, salon: false }); toast('Contraseña cambiada'); }
+  });
   const pick = $('#salonPick');
   if (pick) pick.onchange = () => {
     S.salonId = Number(pick.value);
@@ -259,60 +278,146 @@ async function refreshUnread() {
   } catch { /* sin conexión */ }
 }
 
-/* ---------- Login ---------- */
-function renderLogin(app) {
+/* Aviso de la prueba gratuita: días que quedan o prueba terminada. */
+function trialBar() {
+  const t = S.me?.trial;
+  if (!t || isAdmin()) return '';
+  const sup = S.me.support || {};
+  const contact = sup.phone
+    ? `https://wa.me/${sup.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola, quiero elegir un plan de SalonPro para ${S.me.salon?.name || 'mi salón'}.`)}`
+    : sup.email ? `mailto:${sup.email}?subject=${encodeURIComponent('Plan de SalonPro')}` : '';
+  const cta = contact && !isStaff() ? `<a class="btn small ${t.expired ? 'primary' : ''}" href="${esc(contact)}" target="_blank" rel="noopener">Elegir plan</a>` : '';
+  if (t.expired) {
+    return `<div class="trial-bar expired" role="status"><span><b>Tu prueba gratuita ha terminado.</b> Puedes consultar todo, pero para seguir cobrando y apuntando citas ${isStaff() ? 'el salón tiene que elegir un plan' : 'elige un plan'}. Tus datos siguen guardados.</span>${cta}</div>`;
+  }
+  const days = t.days_left === 0 ? 'Hoy es el último día' : t.days_left === 1 ? 'Te queda 1 día' : `Te quedan ${t.days_left} días`;
+  return `<div class="trial-bar" role="status"><span><b>Prueba gratuita.</b> ${days} (hasta el ${fdate(t.ends)}).</span>${cta}</div>`;
+}
+
+/* ---------- Entrar, crear cuenta y recuperar la contraseña ---------- */
+function renderAuth(app, mode, query) {
   document.body.classList.remove('console');
-  app.innerHTML = `<div class="login">
-    <section class="login-art">
+  const art = `<section class="login-art">
       <b>SalonPro</b>
       <div style="display:flex;flex-direction:column;gap:16px">
-        <h1>Los números de tu salón, al día y sin teclear dos veces.</h1>
-        <p>Facturación, clientes, equipo, caja y producto en un solo panel. Conectado a tu TPV.</p>
+        <h1>${mode === 'registro' ? 'Empieza hoy. Tus números claros desde la primera semana.' : 'Los números de tu salón, al día y sin teclear dos veces.'}</h1>
+        <p>${mode === 'registro' ? 'Agenda, caja, clientas, WhatsApp y rentabilidad por servicio. Trae tus datos de tu programa actual en unos minutos.' : 'Facturación, clientes, equipo, caja y producto en un solo panel. Conectado a tu TPV.'}</p>
       </div>
-      <span style="font-size:13px;color:#B8AEA4">CRM · caja · métricas · distribución</span>
-    </section>
-    <section class="login-form">
-      <form id="loginForm">
+      <span style="font-size:13px;color:#B8AEA4">Agenda · caja · clientas · métricas</span>
+    </section>`;
+  const forms = {
+    entrar: `<form id="authForm" data-mode="entrar">
         <h2>Entrar</h2>
         <label class="field">Email<input name="email" type="email" autocomplete="username" required></label>
         <label class="field">Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
-        <p class="down hidden" id="loginErr" role="alert" style="margin:0;font-weight:600"></p>
+        <p class="down hidden" id="authErr" role="alert" style="margin:0;font-weight:600"></p>
         <button class="btn primary" type="submit">Entrar</button>
+        <div class="auth-links"><a href="#/recuperar">¿Has olvidado la contraseña?</a><a href="#/registro" id="signupLink" class="hidden"><b>Crear cuenta gratis</b></a></div>
         <a href="/" id="landingLink" class="muted hidden" style="font-size:14px">¿Aún no tienes cuenta? Solicita una prueba gratis</a>
         <div class="demo-box hidden" id="demoBox">
           <b style="color:var(--ink)">Demo con datos de ejemplo</b><br>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
             <button type="button" class="btn small" data-demo="norte@demo.com">Entrar como salón</button>
-            <button type="button" class="btn small" data-demo="admin@demo.com">Entrar como distribuidor</button>
+            <button type="button" class="btn small" data-demo="equipo@demo.com">Como equipo</button>
+            <button type="button" class="btn small" data-demo="admin@demo.com">Como distribuidor</button>
           </div>
-          Salón: <code>norte@demo.com</code> · Distribuidor: <code>admin@demo.com</code> · Contraseña: <code>demo1234</code>
+          Salón: <code>norte@demo.com</code> · Equipo: <code>equipo@demo.com</code> · Distribuidor: <code>admin@demo.com</code> · Contraseña: <code>demo1234</code>
         </div>
-      </form>
-    </section>
-  </div>`;
+      </form>`,
+    registro: `<form id="authForm" data-mode="registro">
+        <h2>Crea tu cuenta</h2>
+        <p class="muted" style="margin:0" id="trialNote">Prueba gratis, sin tarjeta.</p>
+        <label class="field">Nombre del salón<input name="salon_name" autocomplete="organization" required></label>
+        <div class="form-grid">
+          <label class="field">Tu nombre<input name="name" autocomplete="name" required></label>
+          <label class="field">Ciudad<input name="city" autocomplete="address-level2"></label>
+        </div>
+        <label class="field">Email<input name="email" type="email" autocomplete="email" required></label>
+        <label class="field">Teléfono (opcional)<input name="phone" type="tel" autocomplete="tel"></label>
+        <label class="field">Contraseña<input name="password" type="password" autocomplete="new-password" minlength="8" required><span class="hint">Mínimo 8 caracteres.</span></label>
+        <label class="hp" aria-hidden="true">No rellenar<input name="website" tabindex="-1" autocomplete="off"></label>
+        <label class="check"><input type="checkbox" name="accept" required> <span id="acceptText">Acepto las condiciones del servicio y la política de privacidad.</span></label>
+        <p class="down hidden" id="authErr" role="alert" style="margin:0;font-weight:600"></p>
+        <button class="btn primary" type="submit">Crear cuenta y empezar</button>
+        <div class="auth-links"><span class="muted">¿Ya tienes cuenta?</span><a href="#/entrar">Entrar</a></div>
+      </form>`,
+    recuperar: `<form id="authForm" data-mode="recuperar">
+        <h2>Recuperar la contraseña</h2>
+        <p class="muted" style="margin:0">Escribe el email con el que entras y te enviaremos un enlace para elegir una contraseña nueva.</p>
+        <label class="field">Email<input name="email" type="email" autocomplete="username" required></label>
+        <p class="down hidden" id="authErr" role="alert" style="margin:0;font-weight:600"></p>
+        <div class="notice hidden" id="authOk"></div>
+        <button class="btn primary" type="submit">Enviar enlace</button>
+        <div class="auth-links"><a href="#/entrar">Volver a entrar</a></div>
+      </form>`,
+    restablecer: `<form id="authForm" data-mode="restablecer">
+        <h2>Elige una contraseña nueva</h2>
+        <label class="field">Contraseña nueva<input name="password" type="password" autocomplete="new-password" minlength="8" required><span class="hint">Mínimo 8 caracteres.</span></label>
+        <label class="field">Repite la contraseña<input name="password2" type="password" autocomplete="new-password" minlength="8" required></label>
+        <p class="down hidden" id="authErr" role="alert" style="margin:0;font-weight:600"></p>
+        <button class="btn primary" type="submit">Guardar y entrar</button>
+        <div class="auth-links"><a href="#/recuperar">Pedir otro enlace</a></div>
+      </form>`
+  };
+  app.innerHTML = `<div class="login">${art}<section class="login-form">${forms[mode] || forms.entrar}</section></div>`;
+  const form = $('#authForm');
+  const showErr = (msg) => { const p = $('#authErr'); p.textContent = msg; p.classList.remove('hidden'); };
   fetch('/api/config').then((r) => r.json()).then((c) => {
-    if (c.landing) $('#landingLink').classList.remove('hidden');
-    if (!c.demo) return;
-    $('#demoBox').classList.remove('hidden');
-    $$('[data-demo]').forEach((b) => (b.onclick = () => {
-      const f = $('#loginForm');
-      f.email.value = b.dataset.demo;
-      f.password.value = 'demo1234';
-      f.requestSubmit();
-    }));
+    if (mode === 'entrar') {
+      if (c.signup) $('#signupLink').classList.remove('hidden');
+      else if (c.landing) $('#landingLink').classList.remove('hidden');
+      if (c.demo) {
+        $('#demoBox').classList.remove('hidden');
+        $$('[data-demo]').forEach((b) => (b.onclick = () => {
+          form.email.value = b.dataset.demo;
+          form.password.value = 'demo1234';
+          form.requestSubmit();
+        }));
+      }
+    }
+    if (mode === 'registro') {
+      if (!c.signup) {
+        form.innerHTML = `<h2>Crea tu cuenta</h2><p class="muted" style="margin:0">Ahora mismo las cuentas nuevas se abren con nosotros. Déjanos tus datos y te damos acceso en 24 horas.</p><a class="btn primary" href="/#prueba">Pedir mi prueba gratis</a><div class="auth-links"><a href="#/entrar">Entrar</a></div>`;
+        return;
+      }
+      $('#trialNote').textContent = `${c.trial_days} días gratis, sin tarjeta. Al terminar eliges si sigues.`;
+      const link = (url, label) => (url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${label}</a>` : label);
+      $('#acceptText').innerHTML = `Acepto las ${link(c.terms_url, 'condiciones del servicio')} y la ${link(c.privacy_url, 'política de privacidad')}.`;
+    }
   }).catch(() => {});
-  $('#loginForm').addEventListener('submit', async (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const f = e.target;
+    const btn = $('button[type=submit]', form);
+    btn.disabled = true;
     try {
-      await api('/api/login', { method: 'POST', body: { email: f.email.value, password: f.password.value }, salon: false });
+      if (mode === 'entrar') {
+        await api('/api/login', { method: 'POST', body: { email: form.email.value, password: form.password.value }, salon: false });
+      } else if (mode === 'registro') {
+        if (!form.accept.checked) throw new Error('Para crear la cuenta tienes que aceptar las condiciones.');
+        await api('/api/signup', { method: 'POST', salon: false, body: {
+          salon_name: form.salon_name.value, name: form.name.value, city: form.city.value, email: form.email.value,
+          phone: form.phone.value, password: form.password.value, website: form.website.value, accept: true
+        } });
+        store.set('welcome', '1');
+      } else if (mode === 'recuperar') {
+        const r = await api('/api/password/forgot', { method: 'POST', body: { email: form.email.value }, salon: false });
+        const ok = $('#authOk');
+        ok.textContent = r.message;
+        ok.className = `notice ${r.mail ? '' : 'info'}`;
+        $('#authErr').classList.add('hidden');
+        return;
+      } else {
+        if (form.password.value !== form.password2.value) throw new Error('Las dos contraseñas no coinciden.');
+        await api('/api/password/reset', { method: 'POST', body: { token: query.get('codigo') || '', password: form.password.value }, salon: false });
+        toast('Contraseña cambiada');
+      }
       S.me = null;
       go('#/');
       render();
     } catch (err) {
-      const p = $('#loginErr');
-      p.textContent = err.message;
-      p.classList.remove('hidden');
+      showErr(err.message);
+    } finally {
+      btn.disabled = false;
     }
   });
 }
@@ -1018,6 +1123,309 @@ VIEWS.pedidos = async (main) => {
 };
 
 /* ---------- Conectar TPV / importar ---------- */
+/* ---------- Traer los datos de otro programa ---------- */
+
+/* Lee un CSV/TXT o un Excel (.xlsx) y devuelve sus filas (la primera, títulos).
+   El Excel se descomprime en el navegador: no hace falta ninguna librería. */
+async function readSpreadsheet(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.xls')) throw new Error('Los archivos .xls antiguos no se pueden leer. Ábrelo en Excel y guárdalo como .xlsx o .csv.');
+  const buf = new Uint8Array(await file.arrayBuffer());
+  const isZip = buf[0] === 0x50 && buf[1] === 0x4b;
+  if (!isZip) {
+    let text = new TextDecoder('utf-8').decode(buf);
+    if (text.includes('�')) text = new TextDecoder('windows-1252').decode(buf);
+    return parseCsvText(text);
+  }
+  return readXlsx(buf);
+}
+
+function parseCsvText(text) {
+  const src = String(text).replace(/^﻿/, '');
+  const first = src.split(/\r?\n/, 1)[0] || '';
+  const delim = [';', '\t', ','].map((d) => [d, first.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let quoted = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (quoted) {
+      if (ch === '"' && src[i + 1] === '"') { cell += '"'; i++; } else if (ch === '"') quoted = false; else cell += ch;
+    } else if (ch === '"' && cell === '') quoted = true;
+    else if (ch === delim) { row.push(cell); cell = ''; } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && src[i + 1] === '\n') i++;
+      row.push(cell); cell = '';
+      if (row.some((c) => c.trim() !== '')) rows.push(row);
+      row = [];
+    } else cell += ch;
+  }
+  row.push(cell);
+  if (row.some((c) => c.trim() !== '')) rows.push(row);
+  return rows;
+}
+
+async function unzipEntries(buf) {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 66000); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error('El archivo Excel está dañado o no es un .xlsx.');
+  const count = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+  const entries = new Map();
+  const dec = new TextDecoder();
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true);
+    const size = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extra = dv.getUint16(p + 30, true);
+    const comment = dv.getUint16(p + 32, true);
+    const local = dv.getUint32(p + 42, true);
+    entries.set(dec.decode(buf.subarray(p + 46, p + 46 + nameLen)), { method, size, local });
+    p += 46 + nameLen + extra + comment;
+  }
+  return async (path) => {
+    const e = entries.get(path);
+    if (!e) return null;
+    const start = e.local + 30 + dv.getUint16(e.local + 26, true) + dv.getUint16(e.local + 28, true);
+    const data = buf.subarray(start, start + e.size);
+    if (e.method === 0) return dec.decode(data);
+    if (typeof DecompressionStream === 'undefined') throw new Error('Tu navegador no puede abrir Excel. Guarda el archivo como .csv y súbelo de nuevo.');
+    const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Response(stream).text();
+  };
+}
+
+async function readXlsx(buf) {
+  const get = await unzipEntries(buf);
+  const xml = (s) => (s ? new DOMParser().parseFromString(s, 'application/xml') : null);
+  const tags = (doc, t) => (doc ? [...doc.getElementsByTagName(t)] : []);
+  const wb = xml(await get('xl/workbook.xml'));
+  const rels = xml(await get('xl/_rels/workbook.xml.rels'));
+  const sheet = tags(wb, 'sheet')[0];
+  if (!sheet) throw new Error('El Excel no tiene ninguna hoja.');
+  const rid = sheet.getAttribute('r:id');
+  const rel = tags(rels, 'Relationship').find((r) => r.getAttribute('Id') === rid);
+  let target = rel ? rel.getAttribute('Target') : 'worksheets/sheet1.xml';
+  target = target.startsWith('/') ? target.slice(1) : `xl/${target.replace(/^\.\//, '')}`;
+  const strings = tags(xml(await get('xl/sharedStrings.xml')), 'si').map((si) => tags(si, 't').map((t) => t.textContent).join(''));
+  // Formatos de fecha: los números con formato de fecha se convierten a AAAA-MM-DD o HH:MM.
+  const styles = xml(await get('xl/styles.xml'));
+  const custom = new Map(tags(styles, 'numFmt').map((f) => [Number(f.getAttribute('numFmtId')), f.getAttribute('formatCode') || '']));
+  const xfs = styles ? tags(styles.getElementsByTagName('cellXfs')[0], 'xf').map((x) => Number(x.getAttribute('numFmtId') || 0)) : [];
+  const isDateFmt = (id) => (id >= 14 && id <= 22) || (id >= 45 && id <= 47) || /[dmyh]/i.test(String(custom.get(id) || '').replace(/"[^"]*"|\[[^\]]*\]/g, ''));
+  const serial = (n) => {
+    const ms = Math.round((n - 25569) * 86400000);
+    const d = new Date(ms);
+    const ymd = d.toISOString().slice(0, 10);
+    const hm = d.toISOString().slice(11, 16);
+    if (n < 1) return hm;
+    return n % 1 ? `${ymd} ${hm}` : ymd;
+  };
+  const colIndex = (ref) => {
+    let n = 0;
+    for (const ch of ref.replace(/\d+$/, '')) n = n * 26 + (ch.charCodeAt(0) - 64);
+    return n - 1;
+  };
+  const doc = xml(await get(target));
+  const rows = [];
+  for (const r of tags(doc, 'row')) {
+    const out = [];
+    for (const c of tags(r, 'c')) {
+      const t = c.getAttribute('t');
+      const v = c.getElementsByTagName('v')[0]?.textContent ?? '';
+      let val;
+      if (t === 's') val = strings[Number(v)] ?? '';
+      else if (t === 'inlineStr') val = tags(c, 't').map((x) => x.textContent).join('');
+      else if (t === 'b') val = v === '1' ? 'Sí' : 'No';
+      else if (t === 'str' || t === 'e') val = v;
+      else if (v !== '' && isDateFmt(xfs[Number(c.getAttribute('s') || 0)] ?? 0)) val = serial(Number(v));
+      else val = v.includes('.') ? v.replace('.', ',') : v;
+      out[colIndex(c.getAttribute('r') || '')] = val;
+    }
+    const filled = Array.from(out, (x) => x ?? '');
+    if (filled.some((x) => String(x).trim() !== '')) rows.push(filled);
+  }
+  if (!rows.length) throw new Error('La primera hoja del Excel está vacía.');
+  return rows;
+}
+
+const SOURCE_HELP = {
+  fresha: { name: 'Fresha', steps: ['Clientas: Clientes → Opciones → Exportar (CSV).', 'Servicios: Catálogo → Opciones → Descargar CSV.', 'Citas (también las pasadas): Informes → Lista de citas → todas las fechas → Exportar CSV.', 'Productos: Informes → Inventario o Lista de productos → Exportar.'] },
+  booksy: { name: 'Booksy', steps: ['Clientas: en Booksy Biz (versión web) → Clientes → Exportar a CSV.', 'Citas y servicios: el panel no deja exportarlos. Pide a soporte de Booksy un archivo con tus citas y súbelo aquí.', 'Mientras sigas usando Booksy, las citas nuevas pueden entrar solas: Ajustes → Agenda → calendario externo.'] },
+  treatwell: { name: 'Treatwell', steps: ['Treatwell no publica cómo exportar los datos. Pide a su soporte la exportación de clientas, servicios y citas en Excel o CSV.', 'Si tu cuenta ofrece un enlace de calendario (iCal), conéctalo en Ajustes → Agenda para que las citas nuevas entren solas.'] },
+  koibox: { name: 'Koibox', steps: ['Busca en Clientes e Informes la opción «Exportar a Excel».', 'Si no la encuentras, pide a su soporte la exportación de clientas, servicios, citas y ventas.'] },
+  flowww: { name: 'Flowww', steps: ['Busca en Clientes e Informes la opción «Exportar» (Excel o CSV).', 'Si no la encuentras, pide a su soporte la exportación de clientas, servicios, citas y ventas.'] },
+  bewe: { name: 'Bewe', steps: ['Busca en Clientes e Informes la opción «Exportar».', 'Si no la encuentras, pide a su soporte la exportación de clientas, servicios, citas y ventas.'] },
+  shore: { name: 'Shore', steps: ['Busca en Clientes la opción «Exportar» (CSV o Excel).', 'Para el resto de datos, pide la exportación a su soporte.'] },
+  excel: { name: 'Excel propio', steps: ['Si llevas tus clientas o tu menú en una hoja de cálculo, súbela tal cual: reconozco las columnas.', 'Si empiezas de cero, descarga una plantilla, rellénala y súbela.'] },
+  otro: { name: 'Otro programa', steps: ['Casi todos los programas tienen «Exportar a Excel o CSV» en Clientes, Servicios, Agenda e Informes.', 'Si no lo encuentras, pide la exportación a su soporte.'] }
+};
+
+const KIND_PREVIEW = {
+  clients: [['name', 'Nombre'], ['phone', 'Teléfono'], ['email', 'Email'], ['birthdate', 'Nacimiento'], ['notes', 'Notas']],
+  services: [['name', 'Servicio'], ['category', 'Categoría'], ['duration', 'Min'], ['price', 'Precio']],
+  products: [['name', 'Producto'], ['kind', 'Uso'], ['price', 'PVP'], ['cost', 'Coste']],
+  appointments: [['date', 'Fecha'], ['start', 'Hora'], ['client', 'Clienta'], ['services', 'Servicio'], ['employee', 'Profesional'], ['status', 'Estado']],
+  sales: [['date', 'Fecha'], ['ref', 'Ticket'], ['client', 'Clienta'], ['lines', 'Conceptos'], ['employee', 'Profesional']]
+};
+const previewCell = (kind, item, f) => {
+  const v = item[f];
+  if (f === 'services') return (v || []).map((s) => s.name).join(', ');
+  if (f === 'client') return v?.name || '';
+  if (f === 'lines') return (v || []).map((l) => `${l.name} ${l.total ?? l.price ?? ''}`).join(' · ');
+  if (f === 'ref' && String(v).startsWith('auto:')) return '';
+  if (f === 'kind') return v === 'tecnico' ? 'Técnico' : 'Venta';
+  if ((f === 'price' || f === 'cost') && v != null) return eur(v, 2);
+  if (f === 'birthdate' || f === 'date') return v ? fdate(v) : '';
+  return v ?? '';
+};
+const TEMPLATES = {
+  clients: 'Nombre;Apellidos;Teléfono;Email;Género;Fecha de nacimiento;Notas\nAna;García López;600111222;ana@email.com;Mujer;12/04/1990;Alergia a PPD',
+  services: 'Servicio;Categoría;Duración;Precio\nCorte y peinado;Corte;45;32\nColor raíz;Color;75;45',
+  products: 'Producto;Uso;PVP;Coste\nChampú hidratante;Venta;18;9\nTinte 7.1;Técnico;0;6,5',
+  appointments: 'Fecha;Hora;Duración;Cliente;Teléfono;Servicio;Profesional;Estado;Referencia\n20/10/2026;10:00;45;Ana García López;600111222;Corte y peinado;Laura;Confirmada;C-1001'
+};
+
+function resultLine(r) {
+  const res = r.result;
+  const what = { clients: 'clientas', services: 'servicios', products: 'productos', appointments: 'citas', sales: 'tickets' }[r.kind];
+  const parts = [`${fmt(res.created)} ${what} nuevas`.replace('servicios nuevas', 'servicios nuevos').replace('productos nuevas', 'productos nuevos').replace('tickets nuevas', 'tickets nuevos')];
+  if (res.updated) parts.push(`${fmt(res.updated)} se completan o actualizan`);
+  if (res.unchanged) parts.push(`${fmt(res.unchanged)} ya estaban`);
+  if (r.kind === 'appointments') {
+    if (res.upcoming) parts.push(`${fmt(res.upcoming)} son próximas`);
+    if (res.employeesCreated) parts.push(`se añaden ${fmt(res.employeesCreated)} profesionales`);
+  }
+  if (r.kind === 'sales' && res.revenue) parts.push(`${eur(res.revenue, 2)} en ventas`);
+  if (r.skipped) parts.push(`${fmt(r.skipped)} filas vacías`);
+  return parts.join(' · ');
+}
+
+VIEWS.migrar = async (main, { query }) => {
+  const schema = await api('/api/migrate/schema');
+  let source = query.get('desde') && SOURCE_HELP[query.get('desde')] ? query.get('desde') : store.get('migrSource') || '';
+  const files = [];
+  main.innerHTML = `
+  <header class="page-head"><div><div class="eyebrow">Desde Fresha, Booksy, Treatwell, Koibox, Flowww, Bewe o tu Excel</div><h1>Traer mis datos</h1></div></header>
+  <section class="card">
+    <h2>1 · ¿Qué programa usas ahora?</h2>
+    <div class="source-grid" role="group" aria-label="Programa de origen">${Object.entries(SOURCE_HELP).map(([k, v]) => `<button type="button" class="source-btn" data-src="${k}" aria-pressed="${source === k}">${esc(v.name)}</button>`).join('')}</div>
+    <div id="srcHelp"></div>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>2 · Sube los archivos</h2><button type="button" class="btn primary hidden" id="importAll">Importar todo</button></div>
+    <p class="muted" style="margin:0;font-size:14px">Clientas, servicios, productos, citas o ventas, en Excel (.xlsx) o CSV. Puedes subir varios a la vez: reconozco qué es cada uno y te enseño lo que va a entrar antes de guardar nada. Si una clienta ya existe (mismo teléfono o email) solo se completan sus datos.</p>
+    <label class="dropzone" id="drop"><input type="file" id="migFiles" multiple accept=".csv,.txt,.xlsx,.xls"><b>Elige los archivos</b><span>o arrástralos aquí</span></label>
+    <div id="fileCards" style="display:flex;flex-direction:column;gap:14px"></div>
+  </section>`;
+
+  const renderHelp = () => {
+    $$('[data-src]', main).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.src === source)));
+    const h = SOURCE_HELP[source];
+    $('#srcHelp').innerHTML = !h ? '<p class="muted" style="margin:0;font-size:14px">Elige tu programa y te digo dónde descargar tus datos.</p>' : `
+      <div class="help-box"><b>Cómo sacar tus datos de ${esc(h.name)}</b><ol>${h.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>
+      <p class="muted" style="margin:0;font-size:13px">Los nombres de los menús cambian según la versión. Si no encuentras la opción, pide la exportación a su soporte: por ley (RGPD) tienen que darte tus datos en un formato que se pueda usar.</p>
+      <div class="chips" style="margin-top:4px"><span class="muted" style="font-size:13px">Plantillas:</span>${Object.keys(TEMPLATES).map((k) => `<button type="button" class="btn small ghost" data-tpl="${k}">${esc(schema.kinds[k].label)}</button>`).join('')}</div></div>`;
+    $$('[data-tpl]', main).forEach((b) => (b.onclick = () => saveFile(new Blob([`﻿${TEMPLATES[b.dataset.tpl]}\n`], { type: 'text/csv;charset=utf-8' }), `plantilla-${b.dataset.tpl}.csv`)));
+  };
+  $$('[data-src]', main).forEach((b) => (b.onclick = () => { source = b.dataset.src; store.set('migrSource', source); renderHelp(); }));
+  renderHelp();
+
+  const run = async (f, dryRun) => api('/api/migrate', { method: 'POST', body: { kind: f.kind || 'auto', rows: f.rows, mapping: f.mapping || undefined, source: source || 'otro', dryRun } });
+
+  const renderCard = (f) => {
+    const r = f.result;
+    const kinds = schema.kinds;
+    const headers = f.rows[0] || [];
+    const sample = f.rows[1] || [];
+    const fieldsOf = f.kind ? Object.entries(kinds[f.kind].fields) : [];
+    const mapping = r?.mapping || {};
+    f.el.innerHTML = `
+      <div class="card-head" style="align-items:flex-start"><div><b>${esc(f.file.name)}</b><br><small class="muted">${fmt(f.rows.length - 1)} filas · ${headers.length} columnas</small></div>
+        <label class="field" style="min-width:180px">Contiene<select data-kind>${[['', 'Elige…'], ...schema.order.map((k) => [k, kinds[k].label])].map(([k, l]) => `<option value="${k}" ${k === (f.kind || '') ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label></div>
+      ${f.error ? `<div class="notice warn">${esc(f.error)}</div>` : ''}
+      ${r && r.ok ? `<div class="notice ${f.done ? '' : 'info'}">${f.done ? 'Importado' : 'Al importar'}: ${esc(resultLine(r))}.</div>
+        ${r.warningCount ? `<details><summary class="muted" style="cursor:pointer;font-size:13px">${fmt(r.warningCount)} filas con avisos (no se importan)</summary><div class="muted" style="font-size:13px">${r.warnings.map(esc).join('<br>')}</div></details>` : ''}
+        <div class="table-wrap"><table><thead><tr>${KIND_PREVIEW[f.kind].map(([, l]) => `<th>${esc(l)}</th>`).join('')}</tr></thead><tbody>${r.preview.map((it) => `<tr>${KIND_PREVIEW[f.kind].map(([k]) => `<td>${esc(previewCell(f.kind, it, k))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : ''}
+      ${f.kind ? `<details ${r && !r.ok ? 'open' : ''}><summary style="cursor:pointer;font-size:14px;font-weight:600">Revisar columnas</summary>
+        <div class="map-grid">${fieldsOf.map(([field, label]) => `<label class="field">${esc(label)}<select data-map="${field}"><option value="">— No está —</option>${headers.map((h, i) => `<option value="${i}" ${mapping[field] === i ? 'selected' : ''}>${esc(h || `Columna ${i + 1}`)}${sample[i] ? ` · ${esc(String(sample[i]).slice(0, 24))}` : ''}</option>`).join('')}</select></label>`).join('')}</div></details>` : ''}
+      <div class="form-actions">${f.done ? '<span class="tag green">Hecho</span>' : `<button type="button" class="btn" data-remove>Quitar</button><button type="button" class="btn primary" data-import ${r && r.ok ? '' : 'disabled'}>Importar este archivo</button>`}</div>`;
+    const kindSel = $('[data-kind]', f.el);
+    kindSel.onchange = async () => { f.kind = kindSel.value || null; f.mapping = null; await analyze(f); };
+    $$('[data-map]', f.el).forEach((s) => (s.onchange = async () => {
+      f.mapping = Object.fromEntries($$('[data-map]', f.el).filter((x) => x.value !== '').map((x) => [x.dataset.map, Number(x.value)]));
+      await analyze(f);
+    }));
+    const rm = $('[data-remove]', f.el);
+    if (rm) rm.onclick = () => { files.splice(files.indexOf(f), 1); f.el.remove(); syncAll(); };
+    const imp = $('[data-import]', f.el);
+    if (imp) imp.onclick = () => importOne(f);
+  };
+
+  const analyze = async (f) => {
+    f.error = null;
+    try {
+      const r = await run(f, true);
+      f.result = r;
+      if (r.kind) f.kind = r.kind;
+      if (!r.ok) f.error = r.error;
+    } catch (err) { f.error = err.message; f.result = null; }
+    renderCard(f);
+    syncAll();
+  };
+
+  const importOne = async (f) => {
+    const btn = $('[data-import]', f.el);
+    if (btn) { btn.disabled = true; btn.textContent = 'Importando…'; }
+    try {
+      const r = await run(f, false);
+      f.result = r;
+      if (!r.ok) f.error = r.error; else f.done = true;
+    } catch (err) { f.error = err.message; }
+    renderCard(f);
+    syncAll();
+    return f.done;
+  };
+
+  const syncAll = () => {
+    const ready = files.filter((f) => !f.done && f.result?.ok);
+    const all = $('#importAll');
+    all.classList.toggle('hidden', ready.length < 2);
+    all.textContent = `Importar todo (${ready.length} archivos)`;
+  };
+  // Orden recomendado: primero el menú y las clientas, después citas y ventas.
+  $('#importAll').onclick = async () => {
+    const ready = files.filter((f) => !f.done && f.result?.ok).sort((a, b) => schema.order.indexOf(a.kind) - schema.order.indexOf(b.kind));
+    let ok = 0;
+    for (const f of ready) if (await importOne(f)) ok++;
+    toast(`${ok} de ${ready.length} archivos importados`);
+  };
+
+  const addFiles = async (list) => {
+    for (const file of list) {
+      const el = document.createElement('div');
+      el.className = 'file-card';
+      el.innerHTML = `<b>${esc(file.name)}</b> <span class="muted">· leyendo…</span>`;
+      $('#fileCards').appendChild(el);
+      const f = { file, el, rows: [], kind: null, mapping: null, result: null, done: false, error: null };
+      try {
+        f.rows = await readSpreadsheet(file);
+        files.push(f);
+        await analyze(f);
+      } catch (err) {
+        el.innerHTML = `<div class="notice warn">${esc(file.name)}: ${esc(err.message)}</div>`;
+      }
+    }
+  };
+  $('#migFiles').onchange = (e) => { addFiles([...e.target.files]); e.target.value = ''; };
+  const drop = $('#drop');
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); addFiles([...e.dataTransfer.files]); });
+};
+
 const CSV_TEMPLATE = `fecha;hora_inicio;hora_fin;ticket;cliente;telefono;genero;empleado;tipo;concepto;cantidad;importe;metodo_pago
 26/09/2026;10:00;10:50;T-1001;Marta Gil;600111222;Mujer;Laura M.;servicio;Color raíz;1;45,00;tarjeta
 26/09/2026;10:00;10:50;T-1001;Marta Gil;600111222;Mujer;Laura M.;producto;Mascarilla hidratante 250 ml;1;24,00;tarjeta
@@ -1028,7 +1436,7 @@ VIEWS.importar = async (main) => {
   const settings = await api('/api/settings');
   const origin = location.origin;
   main.innerHTML = `
-  <header class="page-head"><div><div class="eyebrow">Que los datos entren solos: sin teclear dos veces</div><h1>Conectar TPV / importar</h1></div></header>
+  <header class="page-head"><div><div class="eyebrow">Que los datos entren solos: sin teclear dos veces</div><h1>Conectar TPV</h1></div></header>
   <section class="grid g2">
     <div class="card">
       <h2>1 · Importar desde tu TPV o programa de caja</h2>
@@ -1133,8 +1541,10 @@ VIEWS.ajustes = async (main) => {
       <p class="muted" style="font-size:13px;margin:0">Plan: ${esc(s.plan)} · sesión de ${esc(S.me.user.email)}</p>
     </form>
   </section>
+  <section class="card" id="teamUsers"><div class="loading">Cargando usuarios…</div></section>
   <section class="card" id="booking"><div class="loading">Cargando agenda…</div></section>
   <section class="card" id="channels"><div class="loading">Cargando canales…</div></section>`;
+  renderTeamUsers($('#teamUsers'));
   renderBookingSettings($('#booking'));
   renderChannels($('#channels'));
   $('#salonForm').onsubmit = async (e) => {
@@ -1154,6 +1564,90 @@ VIEWS.ajustes = async (main) => {
     catch (err) { toast(err.message, true); }
   };
 };
+
+/* Usuarios del salón: el dueño da acceso a su equipo. */
+const ROLE_LABEL = { owner: 'Dueño/a · ve todo', staff: 'Equipo · agenda, cobros, caja, clientes y mensajes' };
+async function renderTeamUsers(el) {
+  const [{ users }, cat] = await Promise.all([api('/api/team/users'), api('/api/catalog')]);
+  const empOptions = [['', 'Sin vincular'], ...cat.employees.filter((e) => e.active).map((e) => [e.id, e.name])];
+  el.innerHTML = `<div class="card-head"><div><h2>Usuarios y accesos</h2><p class="muted" style="margin:4px 0 0;font-size:14px">Cada persona entra con su email. El equipo solo ve agenda, cobros, caja, clientes y mensajes: no ve facturación ni ajustes.</p></div>
+      <button type="button" class="btn primary" id="addUser">Dar acceso a alguien</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Persona</th><th>Acceso</th><th>Ficha en Equipo</th><th>Estado</th><th></th></tr></thead><tbody>
+    ${users.map((u) => `<tr>
+      <td><b>${esc(u.name || '—')}</b><br><small class="muted">${esc(u.email)}</small></td>
+      <td>${u.role === 'owner' ? '<span class="tag plum">Dueño/a</span>' : '<span class="tag">Equipo</span>'}</td>
+      <td>${esc(u.employee_name || '—')}</td>
+      <td>${u.active ? '<span class="tag green">Activo</span>' : '<span class="tag">Sin acceso</span>'}</td>
+      <td class="r" style="white-space:nowrap">${u.id === S.me.user.id ? '<small class="muted">Tú</small>' : `<button type="button" class="btn small" data-uedit="${u.id}">Editar</button> <button type="button" class="btn small" data-ulink="${u.id}">Enlace de contraseña</button>`}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+  const reload = () => renderTeamUsers(el);
+  $('#addUser', el).onclick = () => openForm({
+    title: 'Dar acceso a alguien',
+    intro: 'Elige una contraseña provisional y pásasela. Podrá cambiarla en Ajustes.',
+    fields: [
+      { name: 'name', label: 'Nombre', required: true },
+      { name: 'email', label: 'Email', type: 'email', required: true, autocomplete: 'off' },
+      { name: 'password', label: 'Contraseña provisional', type: 'text', required: true, hint: 'Mínimo 8 caracteres.', autocomplete: 'off' },
+      { name: 'role', label: 'Acceso', type: 'select', value: 'staff', options: Object.entries(ROLE_LABEL) },
+      { name: 'employee_id', label: 'Su ficha en Equipo', type: 'select', options: empOptions, hint: 'Para saber de quién es cada cobro y cita.' }
+    ],
+    submit: 'Dar acceso',
+    onSubmit: async (v) => { await api('/api/team/users', { method: 'POST', body: v }); toast(`Acceso creado para ${v.name}`); reload(); }
+  });
+  $$('[data-uedit]', el).forEach((b) => (b.onclick = () => {
+    const u = users.find((x) => String(x.id) === b.dataset.uedit);
+    const dlg = openForm({
+      title: `Acceso de ${u.name || u.email}`,
+      fields: [
+        { name: 'name', label: 'Nombre', value: u.name, required: true },
+        { name: 'email', label: 'Email', type: 'email', value: u.email, required: true },
+        { name: 'role', label: 'Acceso', type: 'select', value: u.role, options: Object.entries(ROLE_LABEL) },
+        { name: 'employee_id', label: 'Su ficha en Equipo', type: 'select', value: u.employee_id ?? '', options: empOptions },
+        { name: 'password', label: 'Nueva contraseña (opcional)', type: 'text', hint: 'Déjalo vacío para no cambiarla.', autocomplete: 'off' },
+        { name: 'active', label: 'Puede entrar', type: 'checkbox', value: !!u.active }
+      ],
+      onSubmit: async (v) => {
+        if (!v.password) delete v.password;
+        await api(`/api/team/users/${u.id}`, { method: 'PUT', body: v });
+        toast('Acceso guardado');
+        reload();
+      }
+    });
+    const actions = $('.form-actions', dlg);
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn';
+    del.style.marginRight = 'auto';
+    del.textContent = 'Quitar acceso';
+    del.onclick = async () => {
+      if (!(await confirmAction(`¿Quitar el acceso de ${u.name || u.email}? Sus cobros y citas se conservan.`, 'Quitar acceso'))) return;
+      try { await api(`/api/team/users/${u.id}`, { method: 'DELETE', body: {} }); dlg.close(); toast('Acceso eliminado'); reload(); } catch (err) { toast(err.message, true); }
+    };
+    actions.prepend(del);
+  }));
+  $$('[data-ulink]', el).forEach((b) => (b.onclick = async () => {
+    try {
+      const { link } = await api(`/api/team/users/${b.dataset.ulink}/reset-link`, { method: 'POST', body: {} });
+      showLinkDialog('Enlace para elegir contraseña', 'Envíaselo por WhatsApp o email. Sirve una vez y caduca en 24 horas.', link);
+    } catch (err) { toast(err.message, true); }
+  }));
+}
+
+/* Muestra un enlace para copiarlo o compartirlo. */
+function showLinkDialog(title, intro, link) {
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `<form method="dialog"><h2>${esc(title)}</h2><p class="muted" style="margin:0">${esc(intro)}</p>
+    <input class="input" readonly value="${esc(link)}" aria-label="Enlace" style="width:100%">
+    <div class="form-actions"><a class="btn" href="https://wa.me/?text=${encodeURIComponent(link)}" target="_blank" rel="noopener">Enviar por WhatsApp</a><button type="button" class="btn" data-copy>Copiar</button><button class="btn primary" type="submit">Hecho</button></div></form>`;
+  document.body.appendChild(dlg);
+  $('[data-copy]', dlg).onclick = async () => {
+    const input = $('input', dlg);
+    input.select();
+    try { await navigator.clipboard.writeText(link); toast('Enlace copiado'); } catch { toast('Selecciona el enlace y cópialo'); }
+  };
+  dlg.addEventListener('close', () => dlg.remove());
+  dlg.showModal();
+}
 
 /* ---------- Consola del distribuidor ---------- */
 VIEWS.consola = async (main) => {
@@ -1201,7 +1695,7 @@ VIEWS.consola = async (main) => {
     <div class="table-wrap"><table><thead><tr><th>Salón</th><th>Plan</th><th class="r">Facturación</th><th class="r">Crec. mes</th><th class="r">Ticket</th><th class="r">Ocupación</th><th class="r">Consumo 90 d</th><th class="r">Stock</th><th>Señal</th><th></th></tr></thead>
     <tbody>${rows.map((s) => `<tr>
       <td><b>${esc(s.name)}</b>${s.risk ? ' <span class="tag red">En riesgo</span>' : ''}${s.active ? '' : ' <span class="tag">Inactivo</span>'}<br><small class="muted">${esc(s.city || '')}${s.signal.lastOrder ? ` · último pedido ${fdateShort(s.signal.lastOrder)}` : ''}${s.owner ? ` · ${esc(s.owner.email)}` : ''}</small></td>
-      <td style="white-space:nowrap">${esc(s.plan)} <small class="muted">${eur(s.monthlyFee)}</small></td>
+      <td style="white-space:nowrap">${esc(s.plan)} <small class="muted">${eur(s.monthlyFee)}</small>${s.plan === 'Prueba' && s.trialEnds ? `<br><small class="${s.trialEnds < S.me.today ? 'down' : 'muted'}">${s.trialEnds < S.me.today ? 'terminó' : 'hasta'} el ${fdateShort(s.trialEnds)}</small>` : ''}${s.signupSource === 'registro' ? ' <span class="tag amber">Alta web</span>' : ''}</td>
       <td class="r num">${eur(s.revenue)}</td><td class="r num ${toneOf(s.growth)}"><b>${pct(s.growth)}</b></td><td class="r num">${eur(s.avgTicket, 2)}</td>
       <td class="r num">${s.occupancy == null ? '—' : `${fmt(s.occupancy * 100)} %`}</td><td class="r num">${s.consumptionPct == null ? '—' : `${fmt(s.consumptionPct, 1)} %`}</td>
       <td class="r num">${s.signal.daysLeft == null ? '—' : `${s.signal.daysLeft} d`}</td><td><span class="tag ${SIGNAL_TAG[s.signal.level]}">${s.signal.level}</span></td>
@@ -1217,13 +1711,30 @@ VIEWS.consola = async (main) => {
     const s = d.salons.find((x) => String(x.id) === btn.dataset.edit);
     openForm({
       title: `Plan de ${s.name}`,
+      intro: s.owner ? `Dueño: ${s.owner.name || ''} ${s.owner.email}${s.phone ? ` · ${s.phone}` : ''}` : '',
       fields: [
-        { name: 'plan', label: 'Plan', value: s.plan },
+        { name: 'plan', label: 'Plan', type: 'select', value: s.plan, options: [...new Set(['Prueba', 'Base', 'Pro', s.plan])].map((p) => [p, p]) },
         { name: 'monthly_fee', label: 'Cuota mensual (€)', type: 'money', value: fmt(s.monthlyFee, 2) },
+        { name: 'trial_ends', label: 'Fin de la prueba', type: 'date', value: s.trialEnds || '', hint: 'Solo cuenta con el plan Prueba. Vacío: sin fecha de fin.' },
         { name: 'active', label: 'Suscripción activa', type: 'checkbox', value: s.active }
       ],
       onSubmit: async (v) => { await api(`/api/admin/salons/${s.id}`, { method: 'PUT', body: v }); toast('Guardado'); render(); }
     });
+    if (s.owner) {
+      const dlg = $$('dialog').at(-1);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn';
+      b.style.marginRight = 'auto';
+      b.textContent = 'Enlace de contraseña del dueño';
+      b.onclick = async () => {
+        try {
+          const { link } = await api(`/api/admin/users/${s.owner.id}/reset-link`, { method: 'POST', body: {} });
+          showLinkDialog('Enlace para el dueño', 'Para que elija una contraseña nueva. Sirve una vez y caduca en 24 horas.', link);
+        } catch (err) { toast(err.message, true); }
+      };
+      $('.form-actions', dlg).prepend(b);
+    }
   }));
   $('#addSalon').onclick = () => salonForm();
   renderLeads($('#leads'));
@@ -1927,7 +2438,7 @@ VIEWS.agenda = async (main) => {
     ${pending.slice(0, 6).map((a) => `<div class="pending-row"><span><b>${esc(a.client_name || 'Sin nombre')}</b> <small class="muted">${dayLabel(a.date)} · ${a.start} · ${esc(a.services.map((s) => s.name).join(' + '))}${a.employee_name ? ` · ${esc(a.employee_name)}` : ''}</small></span>
       <span class="head-actions"><button type="button" class="btn small primary" data-confirm="${a.id}">Confirmar</button><button type="button" class="btn small" data-appt="${a.id}">Ver</button></span></div>`).join('')}</section>` : ''}
   <div class="legend agenda-legend">${(empFilter ? emps : d.employees).map((e) => `<span><i style="background:${LANE_BORDER[(laneOf.get(e.id) ?? 0) % 6]}"></i>${esc(e.name)}</span>`).join('')}
-    <span class="muted">· Toca un hueco para crear una cita</span><a class="btn small ghost" href="#/ajustes" style="margin-left:auto">Reservas online y horario</a></div>
+    <span class="muted">· Toca un hueco para crear una cita</span>${isStaff() ? "" : `<a class="btn small ghost" href="#/ajustes" style="margin-left:auto">Reservas online y horario</a>`}</div>
   <section class="card agenda-card">
     <div class="agenda-grid" style="--cols:${days.length};--colw:${Math.max(150, lanes * 62)}px">
       <div class="agenda-times" style="height:${(endMin - startMin) * PX}px">${Array.from({ length: Math.ceil((endMin - startMin) / 60) + 1 }, (_, i) => startMin + i * 60).filter((m) => m <= endMin).map((m) => `<span style="top:${(m - startMin) * PX}px">${minToHm(m)}</span>`).join('')}</div>
@@ -2200,7 +2711,7 @@ Authorization: Bearer &lt;clave del salón&gt;
   "status": "confirmed", "employee": "Laura M.",
   "client": { "name": "Marta Gil", "phone": "600111222" },
   "services": [{ "name": "Color raíz", "price": 55 }] }] }</pre>
-        <span class="muted" style="font-size:12px">La clave está en «Conectar TPV / importar». Si llega otra vez la misma «ref», la cita se actualiza (cambios de hora y cancelaciones).</span>
+        <span class="muted" style="font-size:12px">La clave está en «Conectar TPV». Si llega otra vez la misma «ref», la cita se actualiza (cambios de hora y cancelaciones).</span>
         <div class="block-title">3 · Ver la agenda en el móvil</div>
         <div class="copy-row"><code class="key">${esc(cal)}</code><button type="button" class="btn small" data-copy="${esc(cal)}">Copiar</button></div>
         <span class="muted" style="font-size:12px">En Google Calendar: «Otros calendarios → Desde URL». En iPhone: Ajustes → Calendario → Cuentas → Añadir calendario suscrito.</span>

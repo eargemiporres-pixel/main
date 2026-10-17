@@ -24,9 +24,18 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   name TEXT DEFAULT '',
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'owner')),
+  role TEXT NOT NULL CHECK (role IN ('admin', 'owner', 'staff')),
   salon_id INTEGER REFERENCES salons(id),
+  employee_id INTEGER REFERENCES employees(id),
+  active INTEGER DEFAULT 1,
   created_at TEXT DEFAULT (datetime('now'))
+);
+-- Enlaces de un solo uso para cambiar la contraseña (se guarda el hash del código).
+CREATE TABLE IF NOT EXISTS password_resets (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL,
+  used INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS sessions (
   token TEXT PRIMARY KEY,
@@ -284,8 +293,47 @@ const MIGRATIONS = [
   ['salons', 'booking_enabled', 'INTEGER DEFAULT 1'],
   ['salons', 'booking_auto_confirm', 'INTEGER DEFAULT 1'],
   ['salons', 'calendar_token', 'TEXT'],
-  ['open_visits', 'appointment_id', 'INTEGER']
+  ['open_visits', 'appointment_id', 'INTEGER'],
+  // Alta libre: fin de la prueba gratuita y de dónde viene el salón.
+  ['salons', 'trial_ends', 'TEXT'],
+  ['salons', 'signup_source', "TEXT DEFAULT 'distribuidor'"],
+  ['salons', 'phone', "TEXT DEFAULT ''"],
+  // Migración desde otros programas.
+  ['clients', 'birthdate', "TEXT DEFAULT ''"],
+  ['clients', 'import_source', "TEXT DEFAULT ''"]
 ];
+
+/* La primera versión solo admitía los roles admin y owner. SQLite no deja
+   cambiar un CHECK, así que se rehace la tabla conservando los datos. */
+function upgradeUsers(db) {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").get();
+  if (!row || row.sql.includes("'staff'")) return;
+  db.exec('PRAGMA foreign_keys = OFF');
+  db.exec('BEGIN');
+  try {
+    db.exec(`CREATE TABLE users_new (
+      id INTEGER PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT DEFAULT '',
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('admin', 'owner', 'staff')),
+      salon_id INTEGER REFERENCES salons(id),
+      employee_id INTEGER REFERENCES employees(id),
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    INSERT INTO users_new (id, email, name, password_hash, role, salon_id, created_at)
+      SELECT id, email, name, password_hash, role, salon_id, created_at FROM users;
+    DROP TABLE users;
+    ALTER TABLE users_new RENAME TO users;`);
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+}
 
 function migrate(db) {
   for (const [table, column, def] of MIGRATIONS) {
@@ -298,6 +346,7 @@ export function openDb(file) {
   if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+  upgradeUsers(db);
   db.exec(SCHEMA);
   migrate(db);
   return db;
