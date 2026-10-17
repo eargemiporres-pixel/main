@@ -224,6 +224,22 @@ button{font:inherit;color:inherit;cursor:pointer}
 .price-row .b{font-size:.92rem;color:var(--muted)}
 .foot{font-size:.82rem;color:var(--muted);margin:8px 0 20px}
 .ok-msg{background:var(--gold-bg);color:var(--gold-ink);border-radius:12px;padding:12px 14px;font-weight:500;margin-bottom:16px}
+.logo{height:48px;width:auto;display:block}
+.note.ok{background:var(--gold-bg);border-color:var(--gold)}
+.note.info{background:var(--sunk);border-color:var(--line)}
+.inp.miss{border-color:var(--amber);background:var(--amber-bg)}
+.chkl{display:flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none}
+.chkl input{width:26px;height:26px;accent-color:var(--gold)}
+.svc.off{opacity:.5}
+.help{margin:0 0 14px;font-size:.92rem;color:var(--muted)}
+.help summary{cursor:pointer;padding:6px 0;text-decoration:underline}
+.help p{padding:4px 0}
+.contact{font-size:.95rem;color:var(--muted);margin-top:6px}
+.contact b{color:var(--ink);font-weight:500;user-select:all;-webkit-user-select:all}
+.imp-salon{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.imp-salon label{display:flex;flex-direction:column;gap:4px;font-size:.82rem;color:var(--muted)}
+.imp-salon .inp{min-height:52px;padding:0 10px;border-radius:12px}
+.imp-salon .inp input{font-size:1.15rem;padding:8px 0}
 @media (prefers-reduced-motion:no-preference){.screen,.res{animation:in .25s ease-out}}
 @keyframes in{from{opacity:.0;transform:translateY(6px)}to{opacity:1;transform:none}}
 </style>
@@ -231,7 +247,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 <body>
 
 <div class="wrap">
-  <div class="brand"><b>MUTTTO</b><button id="reset" type="button" hidden>Empezar de nuevo</button></div>
+  <div class="brand"><img class="logo" src="../assets/logo-muttto.png" alt="Muttto The Beauty Lab" width="48" height="48"><button id="reset" type="button" hidden>Empezar de nuevo</button></div>
 
   <!-- 0 · INTRO -->
   <section id="s-intro" class="hero">
@@ -245,9 +261,12 @@ button{font:inherit;color:inherit;cursor:pointer}
     </ol>
     <div class="cta-stack">
       <button class="btn" id="start" type="button">Empezar</button>
+      <button class="btn ghost" id="import-intro" type="button">Cargar datos desde CSV o PDF</button>
       <button class="link" id="demo" type="button">Ver cómo funciona con un salón de ejemplo</button>
     </div>
-    <p class="hint">Unos 5 minutos. Ten a mano la facturación del mes y tu lista de precios.</p>
+    <div class="note" id="flash-intro" hidden></div>
+    <p class="hint">Unos 5 minutos. Ten a mano la facturación del mes y tu lista de precios. Si tienes un informe de tu programa, súbelo y lo leemos por ti: el archivo se queda en tu móvil y no se envía a ningún sitio.</p>
+    <p class="contact">¿Dudas? Escribe a <b>edu@muttto.com</b></p>
   </section>
 
   <!-- 1 · SALÓN -->
@@ -256,6 +275,8 @@ button{font:inherit;color:inherit;cursor:pointer}
     <p class="prog-txt">Paso 1 de 2</p>
     <h2>Tu salón en un mes normal</h2>
     <p class="lead">Usa cifras aproximadas. Sirven igual.</p>
+    <div class="note" id="flash-salon" hidden></div>
+    <button class="link" type="button" data-pick="1" style="margin-bottom:10px">Prefiero cargar un CSV o PDF</button>
 
     <div class="field">
       <span class="lab" id="l-personas">Personas que atienden clientes</span>
@@ -293,9 +314,22 @@ button{font:inherit;color:inherit;cursor:pointer}
     <p class="prog-txt">Paso 2 de 2</p>
     <h2>Tus servicios</h2>
     <p class="lead">Toca los que haces y rellena precio, minutos y cuántas veces los hiciste en el mes.</p>
+    <div class="note" id="flash-serv" hidden></div>
+    <button class="link" type="button" data-pick="1">Cargar servicios desde un CSV o PDF</button>
+    <details class="help"><summary>¿Qué archivo sirve?</summary><p>Un CSV (Excel) o un PDF con texto, como el informe de servicios de tu programa de gestión. Reconocemos columnas como servicio, precio, duración, cantidad o importe, cliente y profesional. Lo que falte lo completas después.</p></details>
     <div class="picker" id="picker"></div>
     <div id="svc-list"></div>
     <div id="svc-sum" aria-live="polite"></div>
+  </section>
+
+  <!-- 2b · REVISAR ARCHIVO -->
+  <section id="s-imp" class="screen" hidden>
+    <p class="eyebrow">Archivo cargado</p>
+    <h2>Esto es lo que hemos leído</h2>
+    <p class="lead" id="imp-lead"></p>
+    <div id="imp-notes"></div>
+    <div id="imp-salon"></div>
+    <div id="imp-list"></div>
   </section>
 
   <!-- 3 · RESULTADO -->
@@ -320,6 +354,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   </section>
 </div>
 
+<input type="file" id="file" accept=".csv,.txt,.pdf,text/csv,application/pdf" hidden>
 <div class="bar" id="bar" hidden>
   <div class="bar-in">
     <p class="bar-help" id="bar-help"></p>
@@ -330,11 +365,12 @@ button{font:inherit;color:inherit;cursor:pointer}
   </div>
 </div>
 
+<script src="import.js"></script>
 <script>
 (function(){
 'use strict';
 var WEEKS = 52/12;
-var CONTACT_URL = ''; // enlace https de contacto de Muttto (WhatsApp, agenda...). Vacío = oculto.
+var CONTACT_EMAIL = 'edu@muttto.com';
 var KEY = 'muttto-rentabilidad-v1';
 
 var PRESETS = [
@@ -462,11 +498,13 @@ function calc(){
 /* ---------- pantallas ---------- */
 function go(name){
   S.screen=name;
-  ['intro','salon','serv','res'].forEach(function(n){ $('#s-'+n).hidden=(n!==name) });
-  $('#bar').hidden=!(name==='salon'||name==='serv');
+  ['intro','salon','serv','imp','res'].forEach(function(n){ $('#s-'+n).hidden=(n!==name) });
+  $$('[id^=flash-]').forEach(function(f){f.hidden=true});
+  $('#bar').hidden=!(name==='salon'||name==='serv'||name==='imp');
   $('#reset').hidden=(name==='intro');
   if(name==='salon') refreshSalon();
   if(name==='serv') refreshServ();
+  if(name==='imp') renderImport();
   if(name==='res') renderRes();
   save();
   try{window.scrollTo(0,0)}catch(e){}
@@ -521,7 +559,7 @@ function svcHTML(s){
   return '<article class="svc" data-id="'+s.id+'"><div class="svc-top">'+top+'<button type="button" class="x" data-del="1" aria-label="Quitar '+esc(s.name)+'">✕</button></div>'+tg+
   '<div class="trio">'+
    '<label>Precio<span class="inp"><input data-f="precio" inputmode="decimal" autocomplete="off" placeholder="0" value="'+esc(s.precio)+'" aria-label="Precio de '+esc(s.name)+'"><i>€</i></span></label>'+
-   '<label>Duración<span class="inp"><input data-f="min" inputmode="numeric" autocomplete="off" placeholder="'+ph+'" value="'+esc(s.min)+'" aria-label="Minutos de '+esc(s.name)+'"><i>min</i></span></label>'+
+   '<label>Duración<span class="inp'+((!s.min&&s.k.indexOf('imp')===0)?' miss':'')+'"><input data-f="min" inputmode="numeric" autocomplete="off" placeholder="'+ph+'" value="'+esc(s.min)+'" aria-label="Minutos de '+esc(s.name)+'"><i>min</i></span></label>'+
    '<label>Veces al mes<span class="inp"><input data-f="veces" inputmode="numeric" autocomplete="off" placeholder="0" value="'+esc(s.veces)+'" aria-label="Veces al mes de '+esc(s.name)+'"></span></label>'+
   '</div><div class="live" data-live></div></article>';
 }
@@ -645,7 +683,8 @@ function viewDespues(o){
     }).join('')+'</div>';
   }
   h+='<div class="card"><p class="t">Siguiente paso</p><p style="margin-bottom:12px">En Muttto formamos salones para especializarse en color, mechas, alisados, tratamientos y aclarados, los servicios que sí compensan.</p>'+
-    (CONTACT_URL?'<a class="btn" style="text-decoration:none;margin-bottom:10px" href="'+esc(CONTACT_URL)+'" target="_blank" rel="noopener">Hablar con Muttto</a>':'')+
+    '<a class="btn" style="text-decoration:none;margin-bottom:10px" href="mailto:'+CONTACT_EMAIL+'?subject='+encodeURIComponent('Diagnóstico de rentabilidad de mi salón')+'&body='+encodeURIComponent(summaryText(o))+'">Escribir a Muttto</a>'+
+    '<p class="contact" style="margin:0 0 10px">Si no se abre tu correo, escribe a <b>'+CONTACT_EMAIL+'</b></p>'+
     '<button class="btn ghost small" type="button" id="copy">Copiar resumen</button><p class="sub" id="copy-msg" style="margin-top:8px"></p></div>';
   return h;
 }
@@ -671,6 +710,104 @@ function summaryText(o){
   }
   t+='Clientes por persona: '+fmt(o.cpp,0)+'. Ticket medio: '+eur(o.ticket,2)+'.';
   return t;
+}
+
+
+/* ---------- carga de archivos ---------- */
+var M = window.MuttoImport;
+var IMP = {file:'',from:'intro',services:[],salon:{},notes:[]};
+var PDFJS_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+var PDFJS_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+function setFlash(screen,txt,kind){
+  var el=$('#flash-'+screen); if(!el) return;
+  el.hidden=!txt; el.className='note'+(kind?' '+kind:''); el.textContent=txt||'';
+}
+function loadPdfJs(){
+  return new Promise(function(res,rej){
+    if(window.pdfjsLib){res(window.pdfjsLib);return}
+    var sc=document.createElement('script'); sc.src=PDFJS_URL;
+    sc.onload=function(){ if(window.pdfjsLib){window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER;res(window.pdfjsLib)} else rej(new Error('pdfjs')) };
+    sc.onerror=function(){rej(new Error('pdfjs'))};
+    document.head.appendChild(sc);
+  });
+}
+function readPdf(buf){
+  return loadPdfJs().then(function(lib){return lib.getDocument({data:buf}).promise}).then(function(doc){
+    var jobs=[];
+    for(var i=1;i<=doc.numPages&&i<=30;i++) jobs.push(doc.getPage(i).then(function(p){return p.getTextContent()}).then(function(tc){
+      return tc.items.map(function(it){return {str:it.str,x:it.transform[4],y:it.transform[5],w:it.width}});
+    }));
+    return Promise.all(jobs);
+  });
+}
+function decodeText(buf){
+  try{return new TextDecoder('utf-8',{fatal:true}).decode(buf)}catch(e){return new TextDecoder('windows-1252').decode(buf)}
+}
+function inStr(v){return isFinite(v)?String(Math.round(v*100)/100).replace('.',','):''}
+function handleFile(file){
+  if(!file) return;
+  var from=S.screen==='imp'?IMP.from:S.screen, name=file.name||'archivo';
+  var isPdf=/\.pdf$/i.test(name)||file.type==='application/pdf';
+  setFlash(from,'Leyendo '+name+'…','info');
+  file.arrayBuffer().then(function(buf){
+    if(isPdf) return readPdf(buf).then(function(pages){
+      var chars=pages.reduce(function(a,p){return a+p.reduce(function(b,i){return b+i.str.length},0)},0);
+      if(chars<20) throw new Error('scan');
+      return M.pdfItemsToRows(pages);
+    });
+    return M.parseCSV(decodeText(buf));
+  }).then(function(rows){
+    var r=M.analyze(rows), sal=r.salon;
+    var hasSalon=isFinite(sal.factura)||isFinite(sal.clientes)||isFinite(sal.personas);
+    if(!r.services.length&&!hasSalon){setFlash(from,r.notes[0]||'No hemos encontrado datos en el archivo.','warn');return}
+    IMP={file:name,from:from,notes:r.notes,
+      salon:{factura:inStr(sal.factura),clientes:inStr(sal.clientes),personas:inStr(sal.personas)},
+      services:r.services.map(function(x){return {id:'i'+(++S.seq),use:true,name:x.name,rent:x.rent,precio:inStr(x.precio),min:inStr(x.min),veces:inStr(x.veces)}})};
+    go('imp');
+  }).catch(function(e){
+    var m=e&&e.message==='scan'?'Este PDF parece una foto o un escaneo y no tiene texto que podamos leer. Prueba con un CSV o escribe los datos.'
+      :(e&&e.message==='pdfjs'?'No hemos podido abrir el PDF. Revisa la conexión o prueba con un CSV.':'No hemos podido leer el archivo. Prueba con otro CSV o PDF.');
+    setFlash(from,m,'warn');
+  });
+}
+function impCard(it){
+  var ms='inp'+(it.min?'':' miss'), ps='inp'+(it.precio?'':' miss'), vs='inp'+(it.veces?'':' miss');
+  return '<article class="svc'+(it.use?'':' off')+'" data-iid="'+it.id+'">'+
+   '<div class="svc-top"><label class="chkl"><input type="checkbox" data-iuse="1"'+(it.use?' checked':'')+' aria-label="Usar este servicio"></label>'+
+   '<input class="nm" data-if="name" value="'+esc(it.name)+'" aria-label="Nombre del servicio"><button type="button" class="x" data-idel="1" aria-label="Quitar">✕</button></div>'+
+   '<div class="toggle"><span>¿Es color, mechas, alisado, tratamiento o aclarado?</span><button type="button" data-irent="1" aria-pressed="'+!!it.rent+'">Sí</button><button type="button" data-irent="0" aria-pressed="'+!it.rent+'">No</button></div>'+
+   '<div class="trio">'+
+   '<label>Precio<span class="'+ps+'"><input data-if="precio" inputmode="decimal" autocomplete="off" value="'+esc(it.precio)+'" aria-label="Precio"><i>€</i></span></label>'+
+   '<label>Duración<span class="'+ms+'"><input data-if="min" inputmode="numeric" autocomplete="off" placeholder="falta" value="'+esc(it.min)+'" aria-label="Minutos"><i>min</i></span></label>'+
+   '<label>Veces al mes<span class="'+vs+'"><input data-if="veces" inputmode="numeric" autocomplete="off" placeholder="falta" value="'+esc(it.veces)+'" aria-label="Veces al mes"></span></label>'+
+   '</div></article>';
+}
+function updateImpBar(){
+  var n=IMP.services.filter(function(x){return x.use&&x.name.trim()}).length;
+  setBar(n+(n===1?' servicio elegido':' servicios elegidos'),n>0||!!(IMP.salon.factura||IMP.salon.clientes||IMP.salon.personas),'Usar estos datos');
+  $('#back').textContent='Cancelar';
+}
+function renderImport(){
+  $('#imp-lead').textContent=IMP.file+' · '+IMP.services.length+(IMP.services.length===1?' servicio detectado':' servicios detectados')+'. Revisa y corrige lo que haga falta.';
+  $('#imp-notes').innerHTML=IMP.notes.map(function(n){return '<div class="note">'+esc(n)+'</div>'}).join('');
+  var sal=IMP.salon, h='';
+  var fields=[['factura','Facturación','€'],['clientes','Clientes',''],['personas','Personas','']].filter(function(f){return sal[f[0]]});
+  if(fields.length) h='<div class="card"><p class="t">Datos del salón detectados</p><div class="imp-salon">'+fields.map(function(f){
+    return '<label>'+f[1]+'<span class="inp"><input data-sf="'+f[0]+'" inputmode="decimal" value="'+esc(sal[f[0]])+'" aria-label="'+f[1]+'">'+(f[2]?'<i>'+f[2]+'</i>':'')+'</span></label>';}).join('')+'</div></div>';
+  $('#imp-salon').innerHTML=h;
+  $('#imp-list').innerHTML=IMP.services.length?IMP.services.map(impCard).join(''):'';
+  updateImpBar();
+}
+function applyImport(){
+  var sel=IMP.services.filter(function(x){return x.use&&x.name.trim()});
+  sel.forEach(function(it){
+    var nk=M.norm(it.name), ex=S.services.find(function(s){return M.norm(s.name)===nk});
+    if(ex){['precio','min','veces'].forEach(function(f){if(it[f]) ex[f]=it[f]}); ex.rent=it.rent}
+    else S.services.push({id:'s'+(++S.seq),k:'imp'+S.seq,name:it.name.trim(),rent:it.rent,precio:it.precio,min:it.min,veces:it.veces});
+  });
+  ['factura','clientes','personas'].forEach(function(f){ if(IMP.salon[f]){S[f]=IMP.salon[f]; $('#f-'+f).value=S[f]} });
+  save(); go('salon');
+  setFlash('salon','Hemos cargado '+sel.length+(sel.length===1?' servicio':' servicios')+' de '+IMP.file+'. Completa aquí lo que falte (por ejemplo las horas) y en el paso 2 lo marcado en amarillo.','ok');
 }
 
 /* ---------- eventos ---------- */
@@ -700,10 +837,11 @@ function init(){
     ['personas','horas','clientes','factura'].forEach(function(k){$('#f-'+k).value=''});
     go('intro');
   });
-  $('#back').addEventListener('click',function(){go(S.screen==='serv'?'salon':'intro')});
+  $('#back').addEventListener('click',function(){go(S.screen==='imp'?IMP.from:(S.screen==='serv'?'salon':'intro'))});
   $('#next').addEventListener('click',function(){
     if(S.screen==='salon'){go('serv')}
     else if(S.screen==='serv'){S.tab='resumen';renderObjRow();go('res')}
+    else if(S.screen==='imp'){applyImport()}
   });
 
   // picker
@@ -725,6 +863,7 @@ function init(){
     var inp=e.target; if(!inp.dataset.f) return;
     var card=inp.closest('.svc'), s=S.services.find(function(x){return x.id===card.dataset.id}); if(!s) return;
     s[inp.dataset.f]=inp.value; save(); updateLive(s); updateSvcSummary();
+    if(inp.dataset.f==='min') inp.closest('.inp').classList.toggle('miss',!inp.value.trim()&&s.k.indexOf('imp')===0);
   });
   $('#svc-list').addEventListener('click',function(e){
     var card=e.target.closest('.svc'); if(!card) return;
@@ -757,6 +896,32 @@ function init(){
       try{navigator.clipboard.writeText(t).then(function(){msg.textContent='Resumen copiado.'},fallback)}catch(err){fallback()}
     }
   });
+
+
+  // archivos
+  $('#file').addEventListener('change',function(e){var f=e.target.files&&e.target.files[0]; handleFile(f); e.target.value=''});
+  $('#import-intro').addEventListener('click',function(){$('#file').click()});
+  document.addEventListener('click',function(e){ if(e.target.closest('[data-pick]')) $('#file').click() });
+  $('#imp-list').addEventListener('input',function(e){
+    var inp=e.target, card=inp.closest('.svc'); if(!card||!inp.dataset.if) return;
+    var it=IMP.services.find(function(x){return x.id===card.dataset.iid}); if(!it) return;
+    it[inp.dataset.if]=inp.value;
+    var w=inp.closest('.inp'); if(w) w.classList.toggle('miss',!inp.value.trim());
+    updateImpBar();
+  });
+  $('#imp-list').addEventListener('click',function(e){
+    var card=e.target.closest('.svc'); if(!card) return;
+    var it=IMP.services.find(function(x){return x.id===card.dataset.iid}); if(!it) return;
+    if(e.target.closest('[data-idel]')){IMP.services=IMP.services.filter(function(x){return x!==it});renderImport();return}
+    var r=e.target.closest('[data-irent]');
+    if(r){it.rent=r.dataset.irent==='1';$$('[data-irent]',card).forEach(function(b){b.setAttribute('aria-pressed',b.dataset.irent===r.dataset.irent)})}
+  });
+  $('#imp-list').addEventListener('change',function(e){
+    var cb=e.target.closest('[data-iuse]'); if(!cb) return;
+    var card=cb.closest('.svc'), it=IMP.services.find(function(x){return x.id===card.dataset.iid}); if(!it) return;
+    it.use=cb.checked; card.classList.toggle('off',!it.use); updateImpBar();
+  });
+  $('#imp-salon').addEventListener('input',function(e){var f=e.target.dataset.sf; if(f){IMP.salon[f]=e.target.value; updateImpBar()}});
 
   renderObjRow();
   go(S.screen==='res'?'intro':S.screen);

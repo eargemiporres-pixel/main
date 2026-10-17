@@ -112,3 +112,22 @@ python3 -m http.server 8000
 ```
 
 y visitar `http://localhost:8000`.
+
+
+## Calculadora de rentabilidad (`/calculadora/`)
+
+Landing pensada para móvil que diagnostica la rentabilidad de un salón: cuánto
+factura cada minuto del equipo, qué servicios no compensan, cuánto dinero deja
+de ganar al mes / 6 meses / 12 meses y dónde podría estar con un precio mínimo
+por minuto (0,80 / 0,85 / 1,00 / otro).
+
+- `calculadora/index.html`: página y cálculo.
+- `calculadora/import.js`: lector de archivos. Acepta **CSV** y **PDF con texto**,
+  detecta las columnas (servicio, precio, duración, cantidad, importe, cliente,
+  profesional) y rellena los datos para que la persona solo revise. El archivo
+  se procesa en el navegador y no se envía a ningún sitio. Los PDF usan
+  pdf.js, que se carga desde cdnjs.
+
+Con GitHub Pages activo, se publica sola al hacer push a `main` en
+`https://<usuario>.github.io/<repositorio>/calculadora/`.
+Contacto que aparece en la página: edu@muttto.com.
