@@ -2482,25 +2482,29 @@ VIEWS.agenda = async (main) => {
   }));
 };
 
-/* Diálogo "Nueva cita": cliente, servicios (la duración se suma sola),
-   profesional, día y uno de los huecos libres. */
+/* Nueva cita: primero el servicio, después los huecos de los próximos días
+   (con el reparto equitativo del equipo) y al final la clienta. */
 async function appointmentForm({ date, time = '', employeeId = '', client = null } = {}) {
   const cat = await api('/api/catalog');
   const services = cat.services.filter((s) => s.active);
   const employees = cat.employees.filter((e) => e.active);
-  const st = { client, newClient: null, services: [], employee: String(employeeId || ''), date, time };
+  const empName = (id) => employees.find((e) => e.id === id)?.name || '';
+  const st = { client, newClient: null, services: [], employee: String(employeeId || ''), from: date || S.me.today, wantTime: time, pick: null, days: [], expanded: new Set() };
   const dlg = document.createElement('dialog');
   dlg.className = 'wide';
   dlg.innerHTML = `<form method="dialog">
     <h2>Nueva cita</h2>
-    <div class="field">Clienta o cliente<div id="apClient"></div></div>
-    <div class="field">Servicios <span class="hint">Toca uno o varios: la duración se calcula sola.</span>
+    <div class="field">1 · ¿Qué se va a hacer? <span class="hint">Toca uno o varios servicios: sumo la duración y busco dónde cabe.</span>
       <div class="svc-chips" id="apSvc">${services.map((s) => `<button type="button" class="chip" data-svc="${s.id}" aria-pressed="false">${esc(s.name)} <small>${s.duration_min} min · ${eur(s.price)}</small></button>`).join('')}</div></div>
-    <div class="form-grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-      <label class="field">Profesional<select id="apEmp"><option value="">Cualquiera libre</option>${employees.map((e) => `<option value="${e.id}" ${String(e.id) === st.employee ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></label>
-      <label class="field">Día<input type="date" id="apDate" value="${esc(date)}" min="${S.me.today}"></label>
+    <div class="field">
+      <div class="avail-head"><span>2 · Huecos disponibles <span class="hint" id="apSummary">Elige un servicio para ver los próximos huecos.</span></span>
+        <span class="avail-filters"><select id="apEmp" aria-label="Profesional"><option value="">Todo el equipo (reparto equitativo)</option>${employees.map((e) => `<option value="${e.id}" ${String(e.id) === st.employee ? 'selected' : ''}>Solo ${esc(e.name)}</option>`).join('')}</select>
+        <input type="date" id="apFrom" value="${esc(st.from)}" min="${S.me.today}" aria-label="Buscar desde"></span></div>
+      <div id="apDays" class="avail-days"></div>
+      <div id="apMore" class="hidden" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"></div>
     </div>
-    <div class="field">Hora <span class="hint" id="apSummary">Elige servicios para ver los huecos libres.</span><div class="slots" id="apSlots"></div></div>
+    <div class="field hidden" id="apPicked"></div>
+    <div class="field">3 · Clienta o cliente<div id="apClient"></div></div>
     <label class="field">Nota (opcional)<input id="apNotes" placeholder="Por ejemplo: trae foto de referencia"></label>
     <p class="err down hidden" role="alert" style="margin:0;font-weight:600"></p>
     <div class="form-actions"><button type="button" class="btn" data-cancel>Cancelar</button><button class="btn primary" type="submit">Crear cita</button></div>
@@ -2541,43 +2545,111 @@ async function appointmentForm({ date, time = '', employeeId = '', client = null
     $('#apNew', dlg).onclick = () => { st.newClient = { name: $('#apSearch', dlg).value, phone: '', gender: 'M' }; renderClientBox(); };
   };
 
-  const loadSlots = async () => {
-    const box = $('#apSlots', dlg);
+  const hours = (min) => {
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m ? `${h} h ${m} min` : `${h} h`;
+  };
+  // Cada día muestra unos pocos huecos por franja; el resto, al pulsar «más».
+  const PER_PART = 6;
+  const renderDays = () => {
+    const box = $('#apDays', dlg);
+    if (!st.days.length) {
+      box.innerHTML = '<p class="muted" style="margin:0">No hay huecos para esta duración en los próximos dos meses. Prueba con otra profesional o revisa el horario en Ajustes.</p>';
+      $('#apMore', dlg).classList.add('hidden');
+      return;
+    }
+    box.innerHTML = st.days.map((d) => {
+      const parts = [['Mañana', d.slots.filter((x) => x.time < '14:00')], ['Tarde', d.slots.filter((x) => x.time >= '14:00')]].filter(([, l]) => l.length);
+      const pct = d.capacity_minutes ? Math.round((d.free_minutes / d.capacity_minutes) * 100) : 0;
+      return `<div class="avail-day">
+        <div class="avail-day-head"><b>${esc(dayLabel(d.date))}</b><small class="muted">${hours(d.free_minutes)} libres de ${hours(d.capacity_minutes)}</small>
+          <span class="avail-bar" aria-hidden="true"><i style="width:${100 - pct}%"></i></span></div>
+        ${parts.map(([label, list]) => {
+          const key = `${d.date}|${label}`;
+          const shown = st.expanded.has(key) ? list : list.slice(0, PER_PART);
+          return `<div class="avail-part"><span class="block-title">${label}</span><div class="slots">${shown.map((x) => `<button type="button" class="slot" data-date="${d.date}" data-time="${x.time}" aria-pressed="${st.pick?.date === d.date && st.pick?.time === x.time}" title="${x.employees.length} libres: ${esc(x.employees.map(empName).join(', '))}">${x.time}<small>${st.employee ? '' : `${x.employees.length} libre${x.employees.length === 1 ? '' : 's'}`}</small></button>`).join('')}
+            ${list.length > shown.length ? `<button type="button" class="slot more" data-expand="${esc(key)}">+${list.length - shown.length}</button>` : ''}</div></div>`;
+        }).join('')}
+      </div>`;
+    }).join('');
+    const last = st.days.at(-1).date;
+    const more = $('#apMore', dlg);
+    more.classList.remove('hidden');
+    more.innerHTML = `${st.from > S.me.today ? '<button type="button" class="btn small ghost" id="apPrev">← Días anteriores</button>' : '<span></span>'}<button type="button" class="btn small ghost" id="apNext">Ver 4 días más →</button>`;
+    $('#apNext', dlg).onclick = () => { st.from = isoAdd(last, 1); $('#apFrom', dlg).value = st.from; loadDays(); };
+    const prev = $('#apPrev', dlg);
+    if (prev) prev.onclick = () => { const back = isoAdd(st.from, -7); st.from = back < S.me.today ? S.me.today : back; $('#apFrom', dlg).value = st.from; loadDays(); };
+    $$('[data-expand]', box).forEach((b) => (b.onclick = () => { st.expanded.add(b.dataset.expand); renderDays(); }));
+    $$('[data-time]', box).forEach((b) => (b.onclick = () => choose(b.dataset.date, b.dataset.time)));
+  };
+
+  const choose = (date, t) => {
+    const day = st.days.find((d) => d.date === date);
+    const slot = day?.slots.find((x) => x.time === t);
+    if (!slot) return;
+    st.pick = { date, time: t, end: slot.end, employees: slot.employees, employee: slot.suggested };
+    renderDays();
+    const box = $('#apPicked', dlg);
+    box.classList.remove('hidden');
+    box.innerHTML = `<div class="picked"><div><b>${esc(dayLabel(date))} · ${t}–${slot.end}</b><br><small class="muted">${st.employee ? '' : 'Propuesta: quien menos carga tiene ese día de las que están libres.'}</small></div>
+      <label class="field" style="min-width:200px">Con<select id="apWho">${slot.employees.map((id) => `<option value="${id}" ${id === slot.suggested ? 'selected' : ''}>${esc(empName(id))}${id === slot.suggested && !st.employee ? ' (le toca)' : ''}</option>`).join('')}</select></label></div>`;
+    $('#apWho', dlg).onchange = (e) => { st.pick.employee = Number(e.target.value); };
+  };
+
+  const loadDays = async () => {
+    const box = $('#apDays', dlg);
     const total = st.services.reduce((a, id) => a + (services.find((s) => s.id === id)?.duration_min || 0), 0);
     const price = st.services.reduce((a, id) => a + (services.find((s) => s.id === id)?.price || 0), 0);
-    if (!st.services.length || !st.date) { box.innerHTML = ''; $('#apSummary', dlg).textContent = 'Elige servicios para ver los huecos libres.'; return; }
+    st.pick = null;
+    $('#apPicked', dlg).classList.add('hidden');
+    if (!st.services.length) {
+      box.innerHTML = '';
+      $('#apMore', dlg).classList.add('hidden');
+      $('#apSummary', dlg).textContent = 'Elige un servicio para ver los próximos huecos.';
+      return;
+    }
     $('#apSummary', dlg).textContent = `${total} min · ${eur(price, 2)}`;
     box.innerHTML = '<span class="muted">Buscando huecos…</span>';
-    const r = await api(`/api/agenda/slots?date=${st.date}&services=${st.services.join(',')}${st.employee ? `&employee=${st.employee}` : ''}`);
-    if (st.time && !r.slots.some((x) => x.time === st.time)) st.time = '';
-    box.innerHTML = r.slots.length ? r.slots.map((x) => `<button type="button" class="slot" data-time="${x.time}" aria-pressed="${x.time === st.time}">${x.time}</button>`).join('') : '<span class="muted">No quedan huecos ese día para esta duración. Prueba otro día o profesional.</span>';
-    $$('[data-time]', box).forEach((b) => (b.onclick = () => { st.time = b.dataset.time; $$('[data-time]', box).forEach((x) => x.setAttribute('aria-pressed', String(x === b))); }));
+    try {
+      const r = await api(`/api/agenda/availability?services=${st.services.join(',')}&from=${st.from}&days=4${st.employee ? `&employee=${st.employee}` : ''}`);
+      st.days = r.days;
+      st.expanded = new Set();
+      renderDays();
+      // Si se abrió desde un hueco concreto de la agenda, queda elegido.
+      if (st.wantTime && st.days[0]?.date === st.from && st.days[0].slots.some((x) => x.time === st.wantTime)) {
+        const key = `${st.from}|${st.wantTime < '14:00' ? 'Mañana' : 'Tarde'}`;
+        st.expanded.add(key);
+        renderDays();
+        choose(st.from, st.wantTime);
+      }
+    } catch (ex) { box.innerHTML = `<span class="down">${esc(ex.message)}</span>`; }
   };
 
   $$('[data-svc]', dlg).forEach((b) => (b.onclick = () => {
     const id = Number(b.dataset.svc);
     st.services = st.services.includes(id) ? st.services.filter((x) => x !== id) : [...st.services, id];
     b.setAttribute('aria-pressed', String(st.services.includes(id)));
-    loadSlots();
+    loadDays();
   }));
-  $('#apEmp', dlg).onchange = (e) => { st.employee = e.target.value; loadSlots(); };
-  $('#apDate', dlg).onchange = (e) => { st.date = e.target.value; loadSlots(); };
+  $('#apEmp', dlg).onchange = (e) => { st.employee = e.target.value; loadDays(); };
+  $('#apFrom', dlg).onchange = (e) => { if (e.target.value) { st.from = e.target.value < S.me.today ? S.me.today : e.target.value; st.wantTime = ''; loadDays(); } };
   $('form', dlg).addEventListener('submit', async (e) => {
     e.preventDefault();
     err('');
     if (!st.services.length) return err('Elige al menos un servicio.');
-    if (!st.time) return err('Elige una hora libre.');
+    if (!st.pick) return err('Elige uno de los huecos disponibles.');
     if (!st.client && !st.newClient?.name?.trim()) return err('Elige o crea la clienta.');
     try {
       const a = await api('/api/appointments', { method: 'POST', body: {
-        client_id: st.client?.id || null, new_client: st.client ? null : st.newClient, employee_id: st.employee || null,
-        date: st.date, start: st.time, service_ids: st.services, notes: $('#apNotes', dlg).value
+        client_id: st.client?.id || null, new_client: st.client ? null : st.newClient, employee_id: st.pick.employee || null,
+        date: st.pick.date, start: st.pick.time, service_ids: st.services, notes: $('#apNotes', dlg).value
       } });
       dlg.close();
       toast(`Cita creada: ${dayLabel(a.date)} a las ${a.start}${a.employee_name ? ` con ${a.employee_name}` : ''}`);
       S.agendaWeek = mondayOf(a.date);
       if (location.hash.startsWith('#/agenda')) render(); else go('#/agenda');
-    } catch (ex) { err(ex.message); }
+    } catch (ex) { err(ex.message); if (/libre/.test(ex.message)) loadDays(); }
   });
   renderClientBox();
   dlg.showModal();

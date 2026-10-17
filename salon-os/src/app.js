@@ -28,7 +28,7 @@ import { onboardingSteps, loadStarterCatalog } from './onboarding.js';
 import { serviceTimes, reportData, reportXlsx } from './servicetimes.js';
 import {
   scheduleOf, validateSchedule, ensureBookingSetup, availableSlots, createAppointment, rescheduleAppointment, getAppointment,
-  listAppointments, upsertExternalAppointments, syncFeed, agendaIcs, appointmentIcs, nowLocal, toMin
+  listAppointments, upsertExternalAppointments, syncFeed, agendaIcs, appointmentIcs, nowLocal, toMin, nextAvailability
 } from './agenda.js';
 
 const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
@@ -567,6 +567,21 @@ export function createApp(db) {
     const duration = durationOf(salon.id, ids);
     if (!duration) throw bad('Elige al menos un servicio');
     return { duration, slots: availableSlots(db, salon, { date: ctx.query.get('date'), duration, employeeId: Number(ctx.query.get('employee')) || null, ignoreId: Number(ctx.query.get('ignore')) || null }) };
+  });
+  // Primero los huecos: próximos días donde cabe el servicio, con profesional propuesto.
+  on('GET', '/api/agenda/availability', 'team', (ctx) => {
+    const salon = salonFor(ctx);
+    const ids = parseServiceIds(ctx.query.get('services'));
+    const duration = durationOf(salon.id, ids);
+    if (!duration) throw bad('Elige al menos un servicio');
+    const days = Math.min(14, Math.max(1, Number(ctx.query.get('days')) || 4));
+    const employeeId = Number(ctx.query.get('employee')) || null;
+    if (employeeId) owned('employees', employeeId, salon.id);
+    return {
+      duration,
+      employees: db.prepare('SELECT id, name FROM employees WHERE salon_id = ? AND active = 1 ORDER BY name').all(salon.id),
+      days: nextAvailability(db, salon, { duration, employeeId, from: ctx.query.get('from'), days })
+    };
   });
   on('POST', '/api/appointments', 'team', (ctx) => agendaError(() => {
     const salon = salonFor(ctx);

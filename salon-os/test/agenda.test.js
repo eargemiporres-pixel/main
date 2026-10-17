@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { openDb } from '../src/db.js';
 import { createApp } from '../src/app.js';
 import { hashPassword } from '../src/auth.js';
-import { availableSlots, parseIcs, icsToAppointments, upsertExternalAppointments } from '../src/agenda.js';
+import { availableSlots, nextAvailability, parseIcs, icsToAppointments, upsertExternalAppointments } from '../src/agenda.js';
 import { reminderSuggestions } from '../src/messaging.js';
 
 // Martes 15 de septiembre de 2026, 10:00
@@ -162,4 +162,46 @@ test('agenda suscribible y recordatorio de las citas de mañana', async () => {
   const sched = await call('/api/booking-settings', { method: 'PUT', cookie: c, body: { schedule: { 1: null, 2: ['10:00', '19:00'], 3: ['10:00', '19:00'], 4: ['10:00', '19:00'], 5: ['10:00', '19:00'], 6: ['10:00', '14:00'], 0: null } } });
   assert.equal(sched.status, 200);
   assert.deepEqual(availableSlots(db, db.prepare('SELECT * FROM salons WHERE id = 1').get(), { date: '2026-09-21', duration: 20 }), [], 'lunes cerrado tras cambiar el horario');
+});
+
+test('primero los huecos: próximos 4 días con sitio y reparto equitativo del equipo', async () => {
+  db.prepare("INSERT INTO salons (id, name, api_key, booking_slug) VALUES (3, 'Cuatro', 'sk_cuatro', 'cuatro')").run();
+  db.prepare("INSERT INTO employees (id, salon_id, name) VALUES (31, 3, 'Ana'), (32, 3, 'Bea'), (33, 3, 'Carla'), (34, 3, 'Dani')").run();
+  db.prepare("INSERT INTO services (id, salon_id, name, price, duration_min) VALUES (31, 3, 'Mechas', 95, 150)").run();
+  db.prepare("INSERT INTO users (email, password_hash, role, salon_id) VALUES ('cuatro@x.com', ?, 'owner', 3)").run(hashPassword('secreto123'));
+  // Viernes 18: Ana y Bea ya tienen trabajo; Carla tiene una cita corta.
+  const ins = db.prepare("INSERT INTO appointments (salon_id, employee_id, date, start, end, status, token) VALUES (3, ?, '2026-09-18', ?, ?, 'confirmada', ?)");
+  ins.run(31, '09:30', '13:00', 'a1'); ins.run(32, '09:30', '12:00', 'b1'); ins.run(33, '16:00', '16:30', 'c1');
+  const salon = db.prepare('SELECT * FROM salons WHERE id = 3').get();
+
+  const days = nextAvailability(db, salon, { duration: 150, from: '2026-09-18', days: 4 });
+  assert.deepEqual(days.map((d) => d.date), ['2026-09-18', '2026-09-19', '2026-09-21', '2026-09-22'], 'se salta el domingo cerrado');
+  const fri = days[0];
+  assert.equal(fri.capacity_minutes, 630 * 4, '10 h 30 min de horario × 4 personas');
+  assert.equal(fri.free_minutes, 630 * 4 - 210 - 150 - 30);
+  const first = fri.slots[0];
+  assert.equal(first.time, '09:30');
+  assert.equal(first.end, '12:00');
+  assert.deepEqual(first.employees.sort(), [33, 34]);
+  assert.equal(first.suggested, 34, 'Dani no tiene nada ese día: le toca a ella antes que a Carla');
+  assert.equal(days[1].slots.at(-1).time, '11:30', 'el sábado cierra a las 14:00: unas mechas de 150 min empiezan como tarde a las 11:30');
+  // Con una profesional concreta solo cuentan sus huecos.
+  const onlyAna = nextAvailability(db, salon, { duration: 150, employeeId: 31, from: '2026-09-18', days: 1 });
+  assert.equal(onlyAna[0].slots[0].time, '13:00');
+  assert.equal(onlyAna[0].capacity_minutes, 630);
+
+  // Por la API, y al crear la cita sin elegir profesional se aplica el mismo reparto.
+  const cookie = await login('cuatro@x.com');
+  const r = await call('/api/agenda/availability?services=31&from=2026-09-18&days=4', { cookie });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.duration, 150);
+  assert.equal(r.data.days.length, 4);
+  assert.equal(r.data.employees.length, 4);
+  const created = await call('/api/appointments', { method: 'POST', cookie, body: { date: '2026-09-18', start: '09:30', service_ids: [31], new_client: { name: 'Marta' } } });
+  assert.equal(created.status, 200);
+  assert.equal(created.data.employee_name, 'Dani');
+  const next = await call('/api/appointments', { method: 'POST', cookie, body: { date: '2026-09-18', start: '13:00', service_ids: [31], new_client: { name: 'Sara' } } });
+  assert.equal(next.data.employee_name, 'Carla', 'ahora Carla es quien menos carga tiene de las libres');
+  // Otro salón no puede pedir huecos con profesionales ajenos.
+  assert.equal((await call('/api/agenda/availability?services=31&employee=1', { cookie })).status, 404);
 });

@@ -97,13 +97,58 @@ export function availableSlots(db, salon, { date, duration, employeeId = null, i
   return slots;
 }
 
-/* Elige profesional: el pedido, o el libre con menos citas ese día. */
+/* Minutos ya reservados de cada profesional ese día. */
+function bookedMinutes(busy) {
+  const out = new Map();
+  for (const [id, list] of busy) out.set(id, list.reduce((sum, [a, b]) => sum + (b - a), 0));
+  return out;
+}
+
+/* Reparto equitativo (round robin): entre los libres, quien tiene menos
+   minutos reservados ese día; a igualdad, quien tiene menos citas. */
+function fairest(free, busy) {
+  const minutes = bookedMinutes(busy);
+  return [...free].sort((a, b) => (minutes.get(a) || 0) - (minutes.get(b) || 0) || (busy.get(a)?.length || 0) - (busy.get(b)?.length || 0) || a - b)[0];
+}
+
+/* Elige profesional: el pedido, o el libre con menos carga ese día. */
 function pickEmployee(db, salon, date, start, duration, employeeId, ignoreId) {
   const slot = availableSlots(db, salon, { date, duration, employeeId, ignoreId }).find((s) => s.time === start);
   if (!slot) return null;
   if (employeeId) return Number(employeeId);
-  const load = new Map(db.prepare("SELECT employee_id, COUNT(*) AS n FROM appointments WHERE salon_id = ? AND date = ? AND status <> 'cancelada' GROUP BY employee_id").all(salon.id, date).map((r) => [r.employee_id, r.n]));
-  return [...slot.employees].sort((a, b) => (load.get(a) || 0) - (load.get(b) || 0))[0];
+  return fairest(slot.employees, busyByEmployee(db, salon.id, date, ignoreId));
+}
+
+/* Próximos días con hueco para una duración: el salón ve primero dónde cabe
+   el servicio y después elige clienta. Para cada hueco propone profesional
+   con el reparto equitativo. Devuelve hasta `days` días con hueco, buscando
+   como mucho `lookahead` días hacia delante. */
+export function nextAvailability(db, salon, { duration, employeeId = null, from = null, days = 4, lookahead = 60 }) {
+  const out = [];
+  if (!(duration > 0)) return out;
+  const start = from && isDate(from) && from > nowLocal().date ? from : nowLocal().date;
+  const schedule = scheduleOf(salon);
+  const emps = db.prepare('SELECT id FROM employees WHERE salon_id = ? AND active = 1').all(salon.id).map((e) => e.id)
+    .filter((id) => !employeeId || id === Number(employeeId));
+  for (let i = 0; i < lookahead && out.length < days; i++) {
+    const date = addDays(start, i);
+    const slots = availableSlots(db, salon, { date, duration, employeeId });
+    if (!slots.length) continue;
+    const hours = schedule[weekday(date)];
+    const open = toMin(hours[0]);
+    const close = toMin(hours[1]);
+    const busy = busyByEmployee(db, salon.id, date);
+    let booked = 0;
+    for (const id of emps) for (const [a, b] of busy.get(id) || []) booked += Math.max(0, Math.min(b, close) - Math.max(a, open));
+    const capacity = (close - open) * emps.length;
+    out.push({
+      date,
+      capacity_minutes: capacity,
+      free_minutes: Math.max(0, capacity - booked),
+      slots: slots.map((sl) => ({ time: sl.time, end: fromMin(toMin(sl.time) + duration), employees: sl.employees, suggested: employeeId ? Number(employeeId) : fairest(sl.employees, busy) }))
+    });
+  }
+  return out;
 }
 
 export function createAppointment(db, salon, { clientId = null, clientName = '', clientPhone = '', employeeId = null, date, start, serviceIds, notes = '', status = 'confirmada', source = 'salon', ignoreAvailability = false }) {

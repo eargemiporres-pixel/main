@@ -468,3 +468,25 @@ dialog.wide { width: min(720px, calc(100vw - 32px)); }
 .dropzone:focus-within { outline: 2px solid var(--plum); outline-offset: 2px; }
 .file-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .map-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }
+
+/* Nueva cita: huecos de los próximos días */
+.avail-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.avail-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.avail-filters select, .avail-filters input { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font: inherit; font-size: 14px; color: var(--ink); }
+.avail-days { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; font-weight: 400; }
+.avail-day { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.avail-day-head { display: flex; flex-direction: column; gap: 3px; }
+.avail-day-head b { display: block; font-size: 15px; }
+.avail-day-head b::first-letter { text-transform: uppercase; }
+.avail-day-head small { font-size: 12px; }
+.avail-bar { display: block; height: 4px; border-radius: 2px; background: var(--green-soft); overflow: hidden; }
+.avail-bar i { display: block; height: 100%; background: var(--plum); opacity: 0.55; }
+.avail-part { display: flex; flex-direction: column; gap: 6px; }
+.avail-part .slots { max-height: none; }
+.avail-part .slot { min-width: 62px; min-height: 44px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; padding: 4px 6px; }
+.avail-part .slot small { font-size: 10px; font-weight: 500; opacity: 0.75; }
+.avail-part .slot.more { color: var(--plum); border-style: dashed; }
+.picked { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: 12px; background: var(--plum-soft); font-weight: 400; }
+dialog.wide { width: min(860px, calc(100vw - 32px)); }
+.field .avail-filters select, .field .avail-filters input { width: auto; max-width: 100%; min-height: 40px; height: 40px; }
+.field .avail-filters input[type="date"] { width: 160px; }
