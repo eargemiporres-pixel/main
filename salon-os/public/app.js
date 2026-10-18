@@ -211,6 +211,12 @@ async function render() {
       if (!S.salonId) page = 'consola';
     }
   } else if (!page || page === 'consola' || PUBLIC_PAGES.includes(page)) page = isStaff() ? 'agenda' : 'panel';
+  if (page === 'reservar') {
+    // Solo en la demo del navegador: la página de la clienta se abre encima de la agenda.
+    const path = `/${location.hash.replace(/^#\/?/, '')}`;
+    page = 'agenda';
+    if (S.config.web_demo) setTimeout(() => openBookingPreview(path));
+  } else $('#bookingPreview')?.remove();
   if (!VIEWS[page]) page = isAdmin() ? 'consola' : isStaff() ? 'agenda' : 'panel';
   if (isStaff() && !STAFF_PAGES.includes(page)) page = 'agenda';
   const nav = isStaff() ? SALON_NAV.filter(([p]) => STAFF_PAGES.includes(p)) : SALON_NAV;
@@ -2397,7 +2403,74 @@ const isoAdd = (date, n) => { const d = new Date(`${date}T12:00:00Z`); d.setUTCD
 const mondayOf = (date) => { const wd = new Date(`${date}T12:00:00Z`).getUTCDay(); return isoAdd(date, wd === 0 ? -6 : 1 - wd); };
 const dayLabel = (date) => { const d = new Date(`${date}T12:00:00Z`); return `${DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
 const salonNameNow = () => S.me.salon?.name || S.me.salons?.find((x) => x.id === S.salonId)?.name || '';
-const bookingUrl = (slug) => `${location.origin}/reservar/${slug}`;
+// En la demo del navegador no hay servidor: la página de reservas se abre dentro de la propia demo.
+const bookingUrl = (slug) => (S.config?.web_demo ? `#/reservar/${slug}` : `${location.origin}/reservar/${slug}`);
+
+async function bookingSlug() {
+  if (S.me.salon?.booking_slug) return S.me.salon.booking_slug;
+  return (await api('/api/booking-settings')).booking_slug;
+}
+
+/* Compartir la página de reservas: enlace, WhatsApp, abrirla. */
+async function shareBookingDialog() {
+  const slug = await bookingSlug();
+  const url = bookingUrl(slug);
+  const demo = S.config?.web_demo;
+  const name = S.me.salon?.name || S.me.salons?.find((x) => x.id === S.salonId)?.name || 'el salón';
+  const text = `Ya puedes reservar tu cita en ${name} desde el móvil: ${url}`;
+  const dlg = document.createElement('dialog');
+  dlg.innerHTML = `<form method="dialog"><h2>Tu página de reservas</h2>
+    <p class="muted" style="margin:0">Tus clientas eligen servicio, profesional, día y hora. Cada reserva entra en la Agenda y te avisa en Mensajes.</p>
+    ${demo ? '<div class="notice info">En esta demo la página se abre aquí mismo para que veas cómo la usa una clienta. Con SalonPro publicado tendrá su propia dirección (por ejemplo, <b>tudominio.es/reservar/tu-salon</b>) para mandarla por WhatsApp, ponerla en Instagram o en Google.</div>' : `<input class="input" readonly value="${esc(url)}" aria-label="Enlace de reservas" style="width:100%">`}
+    <div class="appt-actions">
+      <a class="btn primary" href="${esc(url)}" ${demo ? '' : 'target="_blank" rel="noopener"'} data-open>Abrir la página</a>
+      ${demo ? '' : `<button type="button" class="btn" data-copy>Copiar enlace</button><a class="btn" href="https://wa.me/?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">Enviar por WhatsApp</a>`}
+      ${S.me.user.role !== 'staff' ? '<a class="btn ghost" href="#/ajustes" data-settings>Horario y opciones</a>' : ''}
+    </div>
+    ${demo ? '' : '<p class="muted" style="margin:0;font-size:13px">Ideas: ponla en la biografía de Instagram, en tu ficha de Google como «Reservar» y en tu estado de WhatsApp.</p>'}
+    <div class="form-actions"><button class="btn" type="submit">Cerrar</button></div></form>`;
+  document.body.appendChild(dlg);
+  const copy = $('[data-copy]', dlg);
+  if (copy) copy.onclick = async () => { try { await navigator.clipboard.writeText(url); toast('Enlace copiado'); } catch { $('input', dlg).select(); toast('Selecciona el enlace y cópialo'); } };
+  $$('[data-open], [data-settings]', dlg).forEach((a) => a.addEventListener('click', () => { if (demo || a.hasAttribute('data-settings')) dlg.close(); }));
+  dlg.addEventListener('close', () => dlg.remove());
+  dlg.showModal();
+}
+
+/* Demo: la página de reservas de la clienta, encima de la aplicación y con
+   sus propios estilos (shadow DOM), usando el servidor que corre en la página. */
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = src;
+    sc.onload = resolve;
+    sc.onerror = () => reject(new Error('No se pudo cargar la página de reservas.'));
+    document.head.appendChild(sc);
+  });
+}
+async function openBookingPreview(path) {
+  $('#bookingPreview')?.remove();
+  const host = document.createElement('div');
+  host.id = 'bookingPreview';
+  host.className = 'booking-preview';
+  host.innerHTML = '<div class="bp-bar"><span><b>Así la ve tu clienta</b> <span class="bp-note">· en la demo, las reservas se guardan en este navegador</span></span><button type="button" class="btn small">Volver a la agenda</button></div><div class="bp-frame"></div>';
+  document.body.appendChild(host);
+  $('.bp-bar button', host).onclick = () => { host.remove(); go('#/agenda'); };
+  const shadow = $('.bp-frame', host).attachShadow({ mode: 'open' });
+  try {
+    if (!S.bookingCss) S.bookingCss = await fetch('reservar.css').then((r) => r.text());
+    if (!window.SalonBooking) await loadScript('reservar.js');
+  } catch (err) { shadow.innerHTML = `<p style="padding:24px">${esc(err.message)}</p>`; return; }
+  shadow.innerHTML = `<style>${S.bookingCss.replace(/:root\s*\{/, ':host {').replace(/(^|\n)\s*body\s*\{/, '$1.rv-root {')}</style><div class="rv-root"><main class="wrap" id="app"></main></div>`;
+  shadow.addEventListener('click', async (e) => {
+    const a = e.target.closest('a[href^="/api/"]');
+    if (!a) return;
+    e.preventDefault();
+    const blob = await fetch(a.getAttribute('href')).then((r) => r.blob());
+    saveFile(blob, 'cita.ics');
+  });
+  window.SalonBooking({ app: shadow.getElementById('app'), path, base: `${location.href.split('#')[0]}#/reservar/`, scroller: host });
+}
 
 VIEWS.agenda = async (main) => {
   S.agendaWeek = S.agendaWeek || mondayOf(S.me.today);
@@ -2431,6 +2504,7 @@ VIEWS.agenda = async (main) => {
       <button type="button" class="btn small" id="wToday">Hoy</button>
       <button type="button" class="btn small" id="wNext" aria-label="Semana siguiente">›</button>
       <select class="input small-select" id="empFilter" aria-label="Profesional"><option value="">Todo el equipo</option>${d.employees.map((e) => `<option value="${e.id}" ${String(e.id) === String(empFilter) ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select>
+      <button type="button" class="btn" id="shareBooking">Compartir reservas online</button>
       <button type="button" class="btn primary" id="newAppt">Nueva cita</button>
     </div>
   </header>
@@ -2470,6 +2544,7 @@ VIEWS.agenda = async (main) => {
   $('#wNext').onclick = () => { S.agendaWeek = isoAdd(S.agendaWeek, 7); render(); };
   $('#wToday').onclick = () => { S.agendaWeek = mondayOf(S.me.today); render(); };
   $('#empFilter').onchange = (e) => { S.agendaEmp = e.target.value; render(); };
+  $('#shareBooking').onclick = () => shareBookingDialog().catch((err) => toast(err.message, true));
   $('#newAppt').onclick = () => appointmentForm({ date: d.today >= d.from && d.today <= weekEnd ? d.today : days[0] || d.from });
   $$('[data-appt]', main).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); appointmentDialog(Number(b.dataset.appt)); }));
   $$('[data-newday]', main).forEach((b) => (b.onclick = () => appointmentForm({ date: b.dataset.newday })));
@@ -2754,7 +2829,7 @@ async function renderBookingSettings(box) {
       <form id="bkForm" class="channel">
         <h3>Página de reservas para tus clientas</h3>
         <p class="muted" style="margin:0;font-size:13px">Compártela en tu WhatsApp, Instagram, Google y tu web. Cada reserva entra en la Agenda y te avisa en Mensajes.</p>
-        <div class="copy-row"><code class="key" id="bkUrl">${esc(url)}</code><button type="button" class="btn small" data-copy="${esc(url)}">Copiar enlace</button><a class="btn small" href="${esc(url)}" target="_blank" rel="noopener">Abrir</a></div>
+        <div class="copy-row"><code class="key" id="bkUrl">${esc(url)}</code><button type="button" class="btn small" data-copy="${esc(url)}">Copiar enlace</button><a class="btn small" href="${esc(url)}" ${S.config?.web_demo ? '' : 'target="_blank" rel="noopener"'}>Abrir</a></div>
         <label class="field">Dirección<span style="display:flex;align-items:center;gap:6px;font-weight:400"><span class="muted">/reservar/</span><input name="slug" value="${esc(b.booking_slug)}" style="flex:1"></span></label>
         <label class="check"><input type="checkbox" name="enabled" ${b.booking_enabled ? 'checked' : ''}> Aceptar reservas online</label>
         <label class="check"><input type="checkbox" name="auto" ${b.booking_auto_confirm ? 'checked' : ''}> Confirmarlas automáticamente (si no, quedan «por confirmar»)</label>

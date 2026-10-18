@@ -16,6 +16,9 @@ cpSync(join(root, 'web-demo', 'shims'), join(out, 'shims'), { recursive: true })
 cpSync(join(root, 'public', 'styles.css'), join(out, 'styles.css'));
 cpSync(join(root, 'public', 'favicon.svg'), join(out, 'favicon.svg'));
 cpSync(join(root, 'public', 'app.js'), join(out, 'ui.js'));
+// Página de reservas de la clienta: la demo la abre dentro de la propia página.
+cpSync(join(root, 'public', 'reservar.js'), join(out, 'reservar.js'));
+cpSync(join(root, 'public', 'reservar.css'), join(out, 'reservar.css'));
 for (const f of readdirSync(join(root, 'src'))) cpSync(join(root, 'src', f), join(out, 'src', f));
 
 console.log(`Demo para navegador lista en ${out}`);

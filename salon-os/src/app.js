@@ -122,7 +122,7 @@ export function createApp(db) {
   });
 
   on('GET', '/api/me', 'team', ({ user }) => {
-    const salon = user.salon_id ? salonById(user.salon_id) : null;
+    const salon = user.salon_id ? ensureBookingSetup(db, salonById(user.salon_id)) : null;
     return {
       user,
       salon,
@@ -1065,7 +1065,7 @@ export function createApp(db) {
   on('GET', '/api/health', 'none', () => ({ ok: true, today: today() }));
   on('GET', '/api/config', 'none', async () => ({
     demo: process.env.DEMO === '1', ai: await aiAvailable(), landing: process.env.WEB_DEMO !== '1',
-    signup: signupOpen(), trial_days: trialDays(), mail: mailConfigured(),
+    signup: signupOpen(), trial_days: trialDays(), mail: mailConfigured(), web_demo: process.env.WEB_DEMO === '1',
     terms_url: process.env.TERMS_URL || '', privacy_url: process.env.PRIVACY_URL || ''
   }));
 

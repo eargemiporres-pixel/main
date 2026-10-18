@@ -490,3 +490,9 @@ dialog.wide { width: min(720px, calc(100vw - 32px)); }
 dialog.wide { width: min(860px, calc(100vw - 32px)); }
 .field .avail-filters select, .field .avail-filters input { width: auto; max-width: 100%; min-height: 40px; height: 40px; }
 .field .avail-filters input[type="date"] { width: 160px; }
+
+/* Demo: página de reservas de la clienta encima de la aplicación */
+.booking-preview { position: fixed; inset: 0; z-index: 80; background: #F4EFE8; overflow-y: auto; }
+.bp-bar { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; background: var(--side); color: #F4EFE8; font-size: 14px; }
+.bp-bar .btn { background: #F4EFE8; color: var(--ink); border-color: #F4EFE8; flex-shrink: 0; }
+@media (max-width: 560px) { .bp-note { display: none; } }

@@ -1,7 +1,14 @@
-/* Reserva online de SalonPro: /reservar/<salón> y /reservar/<salón>/cita/<código>. */
-(function () {
-  var app = document.getElementById('app');
-  var m = location.pathname.match(/^\/reservar\/([a-z0-9-]+)(?:\/cita\/([a-f0-9]+))?/);
+/* Reserva online de SalonPro: /reservar/<salón> y /reservar/<salón>/cita/<código>.
+   window.SalonBooking({ app, path, base }) la monta en otro sitio: la demo del
+   navegador la abre dentro de la propia página (path y base con #/reservar/). */
+window.SalonBooking = function (opts) {
+  opts = opts || {};
+  var app = opts.app || document.getElementById('app');
+  var root = app.getRootNode();
+  var byId = function (id) { return root.getElementById ? root.getElementById(id) : root.querySelector('#' + id); };
+  var all = function (sel) { return root.querySelectorAll(sel); };
+  var base = opts.base || location.origin + '/reservar/';
+  var m = (opts.path || location.pathname).match(/^\/reservar\/([a-z0-9-]+)(?:\/cita\/([a-f0-9]+))?/);
   var slug = m && m[1];
   var token = m && m[2];
   var DAYS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
@@ -28,7 +35,7 @@
     var data;
     api('/api/public/booking/' + slug).then(function (d) {
       data = d;
-      document.title = 'Reserva en ' + d.salon.name;
+      if (!opts.app) document.title = 'Reserva en ' + d.salon.name;
       var cats = {};
       d.services.forEach(function (s) { (cats[s.category || 'Servicios'] = cats[s.category || 'Servicios'] || []).push(s); });
       app.innerHTML =
@@ -61,18 +68,18 @@
 
     function chosen() { return st.services.map(function (id) { return data.services.find(function (s) { return s.id === id; }); }); }
     function duration() { return chosen().reduce(function (a, s) { return a + s.duration_min; }, 0); }
-    function show(id) { document.getElementById(id).hidden = false; }
+    function show(id) { byId(id).hidden = false; }
     function updateBar() {
-      var bar = document.getElementById('bar');
+      var bar = byId('bar');
       bar.hidden = !st.services.length;
       var price = chosen().reduce(function (a, s) { return a + s.price; }, 0);
-      document.getElementById('barTitle').textContent = st.services.length + (st.services.length === 1 ? ' servicio' : ' servicios') + ' · ' + duration() + ' min · ' + euro(price);
-      document.getElementById('barSub').textContent = st.date ? longDate(st.date) + (st.time ? ' a las ' + st.time : '') : chosen().map(function (s) { return s.name; }).join(' + ');
-      var next = document.getElementById('barNext');
+      byId('barTitle').textContent = st.services.length + (st.services.length === 1 ? ' servicio' : ' servicios') + ' · ' + duration() + ' min · ' + euro(price);
+      byId('barSub').textContent = st.date ? longDate(st.date) + (st.time ? ' a las ' + st.time : '') : chosen().map(function (s) { return s.name; }).join(' + ');
+      var next = byId('barNext');
       next.textContent = st.time ? 'Poner mis datos' : st.date ? 'Elegir hora' : 'Elegir día';
     }
     function renderDays() {
-      var box = document.getElementById('days');
+      var box = byId('days');
       var html = '';
       for (var i = 0; i < 30; i++) {
         var date = addDays(data.today, i);
@@ -92,7 +99,7 @@
     function loadSlots() {
       if (!st.date || !st.services.length) return;
       show('s4');
-      var box = document.getElementById('slots');
+      var box = byId('slots');
       box.innerHTML = '<span class="muted">Buscando horas libres…</span>';
       api('/api/public/booking/' + slug + '/slots?date=' + st.date + '&services=' + st.services.join(',') + (st.employee ? '&employee=' + st.employee : '')).then(function (r) {
         box.innerHTML = r.slots.length ? r.slots.map(function (t) { return '<button type="button" class="slot" data-time="' + t + '" aria-pressed="' + (t === st.time) + '">' + t + '</button>'; }).join('')
@@ -102,13 +109,13 @@
             st.time = b.dataset.time;
             box.querySelectorAll('[data-time]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
             show('s5'); updateBar();
-            document.getElementById('s5').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            byId('s5').scrollIntoView({ behavior: 'smooth', block: 'start' });
           };
         });
       }).catch(function (e) { box.innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; });
     }
     function bind() {
-      document.querySelectorAll('[data-svc]').forEach(function (b) {
+      all('[data-svc]').forEach(function (b) {
         b.onclick = function () {
           var id = Number(b.dataset.svc);
           st.services = st.services.indexOf(id) >= 0 ? st.services.filter(function (x) { return x !== id; }) : st.services.concat(id);
@@ -118,28 +125,28 @@
           loadSlots(); updateBar();
         };
       });
-      document.querySelectorAll('[data-emp]').forEach(function (b) {
+      all('[data-emp]').forEach(function (b) {
         b.onclick = function () {
           st.employee = b.dataset.emp; st.time = '';
-          document.querySelectorAll('[data-emp]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+          all('[data-emp]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
           loadSlots(); updateBar();
         };
       });
-      document.getElementById('barNext').onclick = function () {
+      byId('barNext').onclick = function () {
         var target = st.time ? 's5' : st.date ? 's4' : 's3';
         show(target);
-        document.getElementById(target).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        byId(target).scrollIntoView({ behavior: 'smooth', block: 'start' });
       };
-      document.getElementById('s5').addEventListener('submit', function (e) {
+      byId('s5').addEventListener('submit', function (e) {
         e.preventDefault();
         var f = e.target;
-        var msg = document.getElementById('formMsg');
+        var msg = byId('formMsg');
         function err(t) { msg.innerHTML = '<div class="msg err">' + esc(t) + '</div>'; }
         if (!st.time) return err('Elige una hora.');
         if (!f.name.value.trim()) return err('Escribe tu nombre.');
         if (f.phone.value.replace(/\D/g, '').length < 9) return err('Escribe un teléfono válido.');
         if (!f.consent.checked) return err('Para reservar, acepta el uso de tus datos para gestionar la cita.');
-        var btn = document.getElementById('confirm');
+        var btn = byId('confirm');
         btn.disabled = true; btn.textContent = 'Reservando…';
         api('/api/public/booking/' + slug, { method: 'POST', body: {
           service_ids: st.services, employee_id: st.employee || null, date: st.date, start: st.time,
@@ -166,8 +173,8 @@
 
   function done(a) {
     var pending = a.status === 'pendiente';
-    var manageUrl = location.origin + '/reservar/' + slug + '/cita/' + a.token;
-    window.scrollTo(0, 0);
+    var manageUrl = base + slug + '/cita/' + a.token;
+    (opts.scroller || window).scrollTo(0, 0);
     app.innerHTML = '<header class="salon"><small>' + esc(a.salon.name) + '</small><h1>' + (pending ? 'Solicitud enviada' : '¡Cita reservada!') + '</h1></header>' +
       '<section class="step">' +
         '<div class="msg ' + (pending ? 'info' : 'ok') + '">' + (pending ? 'El salón revisará tu solicitud y te confirmará la cita.' : 'Te esperamos. Te enviaremos un recordatorio antes de la cita.') + '</div>' +
@@ -184,19 +191,21 @@
       var STATUS = { pendiente: ['Pendiente de confirmar', 'info'], confirmada: ['Confirmada', 'ok'], en_curso: ['En curso', 'ok'], completada: ['Completada', 'ok'], cancelada: ['Cancelada', 'err'], no_presentada: ['No asististe', 'err'] };
       var s = STATUS[a.status] || ['', 'info'];
       var canCancel = a.status === 'pendiente' || a.status === 'confirmada';
-      document.title = 'Tu cita en ' + a.salon.name;
+      if (!opts.app) document.title = 'Tu cita en ' + a.salon.name;
       app.innerHTML = '<header class="salon"><small>' + esc(a.salon.name) + '</small><h1>Tu cita</h1></header>' +
         '<section class="step"><div class="msg ' + s[1] + '">' + s[0] + '</div>' + summaryHtml(a) +
         '<div class="actions">' + (canCancel ? '<a class="btn" href="/api/public/appointment/' + token + '/ics">Añadir a mi calendario</a><button type="button" class="btn danger" id="cancel">Cancelar la cita</button>' : '') +
-        '<a class="btn primary" href="/reservar/' + esc(a.salon.slug) + '">Reservar otra cita</a></div><div id="cmsg"></div></section>';
-      var c = document.getElementById('cancel');
+        '<a class="btn primary" href="' + esc(base + a.salon.slug) + '">Reservar otra cita</a></div><div id="cmsg"></div></section>';
+      var c = byId('cancel');
       if (c) c.onclick = function () {
-        if (c.dataset.sure !== '1') { c.dataset.sure = '1'; c.textContent = 'Sí, cancelar la cita'; document.getElementById('cmsg').innerHTML = '<p class="muted" style="font-size:14px">Pulsa otra vez para confirmar. El hueco quedará libre para otra persona.</p>'; return; }
+        if (c.dataset.sure !== '1') { c.dataset.sure = '1'; c.textContent = 'Sí, cancelar la cita'; byId('cmsg').innerHTML = '<p class="muted" style="font-size:14px">Pulsa otra vez para confirmar. El hueco quedará libre para otra persona.</p>'; return; }
         c.disabled = true;
         api('/api/public/appointment/' + token + '/cancel', { method: 'POST', body: {} }).then(render).catch(function (e) {
-          document.getElementById('cmsg').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; c.disabled = false;
+          byId('cmsg').innerHTML = '<div class="msg err">' + esc(e.message) + '</div>'; c.disabled = false;
         });
       };
     }
   }
-})();
+};
+
+if (document.getElementById('app') && /^\/reservar\//.test(location.pathname)) window.SalonBooking();
