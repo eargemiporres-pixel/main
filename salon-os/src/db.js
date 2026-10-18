@@ -136,6 +136,70 @@ CREATE TABLE IF NOT EXISTS cash_closings (
   created_at TEXT DEFAULT (datetime('now')),
   UNIQUE (salon_id, date)
 );
+-- Histórico traído de otros programas: facturas, cobros y deudas, bonos y tarjetas regalo.
+CREATE TABLE IF NOT EXISTS invoices (
+  id INTEGER PRIMARY KEY,
+  salon_id INTEGER NOT NULL REFERENCES salons(id),
+  number TEXT NOT NULL,
+  series TEXT DEFAULT '',
+  date TEXT NOT NULL,
+  client_id INTEGER REFERENCES clients(id),
+  client_name TEXT DEFAULT '',
+  client_tax_id TEXT DEFAULT '',
+  concept TEXT DEFAULT '',
+  base REAL DEFAULT 0,
+  tax_rate REAL,
+  tax REAL DEFAULT 0,
+  total REAL NOT NULL DEFAULT 0,
+  paid REAL DEFAULT 0,
+  status TEXT DEFAULT 'pagada' CHECK (status IN ('pagada', 'pendiente', 'parcial', 'anulada')),
+  method TEXT DEFAULT '',
+  source TEXT DEFAULT 'manual',
+  external_ref TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE (salon_id, external_ref)
+);
+CREATE INDEX IF NOT EXISTS idx_invoices_salon_date ON invoices (salon_id, date);
+CREATE TABLE IF NOT EXISTS payments (
+  id INTEGER PRIMARY KEY,
+  salon_id INTEGER NOT NULL REFERENCES salons(id),
+  date TEXT NOT NULL,
+  client_id INTEGER REFERENCES clients(id),
+  client_name TEXT DEFAULT '',
+  concept TEXT DEFAULT '',
+  amount REAL NOT NULL DEFAULT 0,
+  paid REAL DEFAULT 0,
+  pending REAL DEFAULT 0,
+  method TEXT DEFAULT '',
+  status TEXT DEFAULT 'cobrado' CHECK (status IN ('cobrado', 'pendiente', 'parcial', 'devuelto')),
+  invoice_number TEXT DEFAULT '',
+  source TEXT DEFAULT 'manual',
+  external_ref TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE (salon_id, external_ref)
+);
+CREATE INDEX IF NOT EXISTS idx_payments_salon_date ON payments (salon_id, date);
+CREATE TABLE IF NOT EXISTS vouchers (
+  id INTEGER PRIMARY KEY,
+  salon_id INTEGER NOT NULL REFERENCES salons(id),
+  code TEXT DEFAULT '',
+  kind TEXT DEFAULT 'bono' CHECK (kind IN ('bono', 'tarjeta')),
+  client_id INTEGER REFERENCES clients(id),
+  client_name TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  sessions_total INTEGER,
+  sessions_used INTEGER DEFAULT 0,
+  amount REAL DEFAULT 0,
+  balance REAL,
+  purchased TEXT,
+  expires TEXT,
+  status TEXT DEFAULT 'activo' CHECK (status IN ('activo', 'agotado', 'caducado', 'anulado')),
+  source TEXT DEFAULT 'manual',
+  external_ref TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE (salon_id, external_ref)
+);
+CREATE INDEX IF NOT EXISTS idx_vouchers_client ON vouchers (client_id);
 CREATE TABLE IF NOT EXISTS purchase_orders (
   id INTEGER PRIMARY KEY,
   salon_id INTEGER NOT NULL REFERENCES salons(id),
@@ -300,7 +364,10 @@ const MIGRATIONS = [
   ['salons', 'phone', "TEXT DEFAULT ''"],
   // Migración desde otros programas.
   ['clients', 'birthdate', "TEXT DEFAULT ''"],
-  ['clients', 'import_source', "TEXT DEFAULT ''"]
+  ['clients', 'import_source', "TEXT DEFAULT ''"],
+  ['clients', 'tax_id', "TEXT DEFAULT ''"],
+  // Movimientos de caja importados: la referencia evita duplicados al reimportar.
+  ['cash_movements', 'external_ref', 'TEXT']
 ];
 
 /* La primera versión solo admitía los roles admin y owner. SQLite no deja
@@ -340,6 +407,7 @@ function migrate(db) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
     if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
   }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_cash_ext ON cash_movements (salon_id, external_ref)');
 }
 
 export function openDb(file) {

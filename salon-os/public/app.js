@@ -34,6 +34,7 @@ const ICONS = {
   pedidos: 'M4 7h13l3 4v6h-2M4 7v10h2M4 7l1-3h10l2 3M9 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4M17 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4M11 17h4',
   importar: 'M12 3v12M7 10l5 5 5-5M4 21h16',
   migrar: 'M4 4h7l2 3h7v13H4zM12 10v7M9 14l3 3 3-3',
+  historico: 'M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2zM9 8h6M9 12h6M9 16h3',
   ajustes: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   consola: 'M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6',
   mensajes: 'M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z',
@@ -181,7 +182,7 @@ const go = (hash) => { location.hash = hash; };
 const SALON_NAV = [
   ['panel', 'Panel'], ['agenda', 'Agenda'], ['cobro', 'Nuevo cobro'], ['caja', 'Caja'], ['clientes', 'Clientes'], ['mensajes', 'Mensajes'],
   ['equipo', 'Equipo y horas'], ['catalogo', 'Servicios y productos'], ['tiempos', 'Tiempos y rentabilidad'], ['pedidos', 'Pedidos de producto'],
-  ['migrar', 'Traer mis datos'], ['importar', 'Conectar TPV'], ['ajustes', 'Ajustes']
+  ['historico', 'Facturas y cobros'], ['migrar', 'Traer mis datos'], ['importar', 'Conectar TPV'], ['ajustes', 'Ajustes']
 ];
 const VIEWS = {};
 
@@ -632,6 +633,11 @@ VIEWS.clientes = async (main, { id }) => {
         <div class="kpi small"><span class="k">Gasto 12 meses</span><span class="v">${eur(s.spent12m)}</span><span class="d">total ${eur(s.spent)}</span></div>
         <div class="kpi small"><span class="k">Retail comprado</span><span class="v">${eur(s.retailAmount)}</span><span class="d">${fmt(s.retailUnits)} unidades</span></div>
       </div>
+      ${d.money?.pending > 0.005 ? `<div class="notice warn">Tiene ${eur(d.money.pending, 2)} pendientes de cobro.</div>` : ''}
+      ${d.money && (d.money.vouchers.length || d.money.invoices.length) ? `<div class="card"><div class="card-head"><h2>Bonos, tarjetas y facturas</h2></div>
+        ${d.money.vouchers.map((v) => `<div class="kv"><span><b>${esc(v.description || (v.kind === 'tarjeta' ? 'Tarjeta regalo' : 'Bono'))}</b> <small>${esc(voucherLeft(v))}${v.expires ? ` · caduca el ${fdate(v.expires)}` : ''}</small></span><span class="tag ${VOU_STATUS[v.status][1]}">${VOU_STATUS[v.status][0]}</span></div>`).join('')}
+        ${d.money.invoices.map((i) => `<div class="kv"><span>Factura ${esc(i.series ? `${i.series}-${i.number}` : i.number)} <small>${fdate(i.date)}</small></span><span>${eur(i.total, 2)} <span class="tag ${INV_STATUS[i.status][1]}">${INV_STATUS[i.status][0]}</span></span></div>`).join('')}
+      </div>` : ''}
       ${s.nextVisit ? `<div class="notice ${s.nextVisitOverdue ? 'warn' : ''}">Próxima visita estimada: ${fdate(s.nextVisit)}${s.nextVisitOverdue ? ' · ya ha pasado: buen momento para escribirle' : ''}</div>` : ''}
       <div class="card">
         <div class="card-head"><h2>Citas</h2><button type="button" class="btn small primary" id="clientAppt">Nueva cita</button></div>
@@ -1129,6 +1135,85 @@ VIEWS.pedidos = async (main) => {
 };
 
 /* ---------- Conectar TPV / importar ---------- */
+/* ---------- Facturas, cobros, bonos y caja (histórico) ---------- */
+const INV_STATUS = { pagada: ['Cobrada', 'green'], pendiente: ['Pendiente', 'red'], parcial: ['Parcial', 'amber'], anulada: ['Anulada', ''] };
+const PAY_STATUS = { cobrado: ['Cobrado', 'green'], pendiente: ['Pendiente', 'red'], parcial: ['Parcial', 'amber'], devuelto: ['Devuelto', ''] };
+const VOU_STATUS = { activo: ['Activo', 'green'], agotado: ['Agotado', ''], caducado: ['Caducado', 'red'], anulado: ['Anulado', ''] };
+const voucherLeft = (v) => (v.sessions_total != null ? `${v.sessions_total - v.sessions_used} de ${v.sessions_total} sesiones` : `Saldo ${eur(v.balance ?? v.amount, 2)}`);
+
+VIEWS.historico = async (main, { query }) => {
+  const tab = ['invoices', 'payments', 'vouchers', 'cash'].includes(query.get('tab')) ? query.get('tab') : 'invoices';
+  const year = query.get('ano') || '';
+  const q = query.get('q') || '';
+  const status = query.get('estado') || '';
+  const from = year ? `${year}-01-01` : '';
+  const to = year ? `${year}-12-31` : '';
+  const d = await api(`/api/history?tab=${tab}&from=${from}&to=${to}&q=${encodeURIComponent(q)}&status=${status}`);
+  const t = d.totals;
+  const nowY = Number(S.me.today.slice(0, 4));
+  const years = Array.from({ length: 8 }, (_, i) => String(nowY - i));
+  const statusOptions = {
+    invoices: [['', 'Todas'], ['pagada', 'Cobradas'], ['pendiente', 'Pendientes'], ['parcial', 'Parciales'], ['anulada', 'Anuladas']],
+    payments: [['', 'Todos'], ['pendiente', 'Pendientes'], ['parcial', 'Parciales'], ['cobrado', 'Cobrados'], ['devuelto', 'Devueltos']],
+    vouchers: [['', 'Todos'], ['activo', 'Activos'], ['agotado', 'Agotados'], ['caducado', 'Caducados'], ['anulado', 'Anulados']],
+    cash: [['', 'Entradas y salidas'], ['in', 'Solo entradas'], ['out', 'Solo salidas']]
+  }[tab];
+  const kpis = {
+    invoices: [['Facturas', fmt(t.n)], ['Facturado', eur(t.total, 2)], ['Base imponible', eur(t.base, 2)], ['IVA', eur(t.tax, 2)], ['Pendiente de cobro', eur(t.pending, 2)]],
+    payments: [['Registros', fmt(t.n)], ['Cobrado', eur(t.collected, 2)], ['Pendiente de cobro', eur(t.pending, 2)]],
+    vouchers: [['Bonos y tarjetas', fmt(t.n)], ['Activos', fmt(t.active)], ['Sesiones por consumir', fmt(t.sessions)], ['Saldo en tarjetas regalo', eur(t.balance, 2)]],
+    cash: [['Movimientos', fmt(t.n)], ['Entradas', eur(t.in_total, 2)], ['Salidas', eur(t.out_total, 2)], ['Saldo', eur(t.in_total - t.out_total, 2)]]
+  }[tab];
+  const table = {
+    invoices: () => `<thead><tr><th>Factura</th><th>Fecha</th><th>Cliente</th><th class="r">Base</th><th class="r">IVA</th><th class="r">Total</th><th>Estado</th></tr></thead><tbody>${d.rows.map((r) => `<tr>
+      <td><b>${esc(r.series ? `${r.series}-${r.number}` : r.number)}</b>${r.concept ? `<br><small class="muted">${esc(r.concept)}</small>` : ''}</td><td class="muted" style="white-space:nowrap">${fdate(r.date)}</td>
+      <td>${r.client_id ? `<a href="#/clientes/${r.client_id}">${esc(r.client_name)}</a>` : esc(r.client_name || '—')}${r.client_tax_id ? `<br><small class="muted">${esc(r.client_tax_id)}</small>` : ''}</td>
+      <td class="r num">${eur(r.base, 2)}</td><td class="r num">${eur(r.tax, 2)}${r.tax_rate != null ? ` <small class="muted">${fmt(r.tax_rate, r.tax_rate % 1 ? 1 : 0)} %</small>` : ''}</td><td class="r num"><b>${eur(r.total, 2)}</b></td>
+      <td><span class="tag ${INV_STATUS[r.status][1]}">${INV_STATUS[r.status][0]}</span>${r.status === 'parcial' ? `<br><small class="muted">falta ${eur(r.total - r.paid, 2)}</small>` : ''}</td></tr>`).join('')}</tbody>`,
+    payments: () => `<thead><tr><th>Fecha</th><th>Cliente</th><th>Concepto</th><th class="r">Importe</th><th class="r">Cobrado</th><th class="r">Pendiente</th><th>Estado</th></tr></thead><tbody>${d.rows.map((r) => `<tr>
+      <td class="muted" style="white-space:nowrap">${fdate(r.date)}</td><td>${r.client_id ? `<a href="#/clientes/${r.client_id}">${esc(r.client_name)}</a>` : esc(r.client_name || '—')}</td>
+      <td>${esc(r.concept || '')}${r.invoice_number ? ` <small class="muted">· factura ${esc(r.invoice_number)}</small>` : ''}</td><td class="r num">${eur(r.amount, 2)}</td><td class="r num">${eur(r.paid, 2)}</td>
+      <td class="r num ${r.pending > 0 ? 'down' : ''}"><b>${eur(r.pending, 2)}</b></td><td><span class="tag ${PAY_STATUS[r.status][1]}">${PAY_STATUS[r.status][0]}</span></td></tr>`).join('')}</tbody>`,
+    vouchers: () => `<thead><tr><th>Cliente</th><th>Bono o tarjeta</th><th>Quedan</th><th class="r">Importe</th><th>Comprado</th><th>Caduca</th><th>Estado</th></tr></thead><tbody>${d.rows.map((r) => `<tr>
+      <td>${r.client_id ? `<a href="#/clientes/${r.client_id}">${esc(r.client_name)}</a>` : esc(r.client_name || '—')}</td>
+      <td>${esc(r.description || (r.kind === 'tarjeta' ? 'Tarjeta regalo' : 'Bono'))}${r.code ? `<br><small class="muted">${esc(r.code)}</small>` : ''}</td><td><b>${esc(voucherLeft(r))}</b></td>
+      <td class="r num">${eur(r.amount, 2)}</td><td class="muted">${r.purchased ? fdate(r.purchased) : '—'}</td><td class="muted">${r.expires ? fdate(r.expires) : '—'}</td>
+      <td><span class="tag ${VOU_STATUS[r.status][1]}">${VOU_STATUS[r.status][0]}</span></td></tr>`).join('')}</tbody>`,
+    cash: () => `<thead><tr><th>Fecha</th><th>Concepto</th><th>Categoría</th><th>Forma de pago</th><th class="r">Entrada</th><th class="r">Salida</th></tr></thead><tbody>${d.rows.map((r) => `<tr>
+      <td class="muted" style="white-space:nowrap">${fdate(r.date)}</td><td>${esc(r.note || '')}</td><td>${esc(r.category || '')}</td><td>${METHOD[r.method] || esc(r.method || '')}</td>
+      <td class="r num up">${r.direction === 'in' ? eur(r.amount, 2) : ''}</td><td class="r num down">${r.direction === 'out' ? eur(r.amount, 2) : ''}</td></tr>`).join('')}</tbody>`
+  }[tab];
+  const empty = { invoices: 'No hay facturas', payments: 'No hay cobros ni deudas', vouchers: 'No hay bonos ni tarjetas regalo', cash: 'No hay movimientos de caja' }[tab];
+  main.innerHTML = `
+  <header class="page-head"><div><div class="eyebrow">Lo registrado aquí y lo traído de tu programa anterior</div><h1>Facturas y cobros</h1></div>
+    <div class="head-actions"><a class="btn" href="#/migrar">Traer histórico</a></div></header>
+  <div class="seg" role="tablist" aria-label="Histórico">${[['invoices', 'Facturas'], ['payments', 'Cobros y deudas'], ['vouchers', 'Bonos y tarjetas'], ['cash', 'Caja']].map(([k, l]) => `<button type="button" data-tab="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>
+  <section class="grid g5">${kpis.map(([k, v]) => `<div class="kpi small"><span class="k">${esc(k)}</span><span class="v">${v}</span></div>`).join('')}</section>
+  ${tab === 'payments' && d.debtors.length ? `<section class="card"><div class="card-head"><h2>Quién debe más</h2><span class="muted">Cobros pendientes por cliente</span></div><div class="chips">${d.debtors.map((x) => `<span class="tag red">${esc(x.client_name || 'Sin nombre')} · ${eur(x.pending, 2)}</span>`).join('')}</div></section>` : ''}
+  <section class="card">
+    <form class="filters" id="histFilters">
+      <input class="input" name="q" value="${esc(q)}" placeholder="Buscar por cliente, número o concepto" aria-label="Buscar">
+      ${tab === 'vouchers' ? '' : `<select class="input" name="ano" aria-label="Año"><option value="">Todos los años</option>${years.map((y) => `<option ${y === year ? 'selected' : ''}>${y}</option>`).join('')}</select>`}
+      <select class="input" name="estado" aria-label="Estado">${statusOptions.map(([v, l]) => `<option value="${v}" ${v === status ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <button class="btn" type="submit">Filtrar</button>
+    </form>
+    ${d.rows.length ? `<div class="table-wrap"><table>${table()}</table></div>${d.rows.length >= 500 ? '<p class="muted" style="font-size:13px;margin:0">Se muestran los 500 más recientes: filtra por año o busca para ver el resto.</p>' : ''}`
+      : `<div class="empty">${empty}${q || status || year ? ' con estos filtros' : ''}. ${q || status || year ? '' : 'Puedes traer el histórico de tu programa anterior desde «Traer histórico».'}</div>`}
+  </section>
+  ${tab === 'cash' && d.closings.length ? `<section class="card"><div class="card-head"><h2>Cierres de caja</h2></div><div class="table-wrap"><table><thead><tr><th>Fecha</th><th class="r">Fondo</th><th class="r">Esperado</th><th class="r">Contado</th><th class="r">Diferencia</th></tr></thead><tbody>${d.closings.map((c) => `<tr><td>${fdate(c.date)}</td><td class="r num">${eur(c.opening, 2)}</td><td class="r num">${eur(c.expected, 2)}</td><td class="r num">${eur(c.counted, 2)}</td><td class="r num ${c.diff < 0 ? 'down' : c.diff > 0 ? 'up' : ''}"><b>${eur(c.diff, 2)}</b></td></tr>`).join('')}</tbody></table></div></section>` : ''}`;
+  const nav = (patch) => {
+    const p = new URLSearchParams({ tab, ano: year, q, estado: status, ...patch });
+    for (const [k, v] of [...p]) if (!v) p.delete(k);
+    go(`#/historico?${p}`);
+  };
+  $$('[data-tab]', main).forEach((b) => (b.onclick = () => nav({ tab: b.dataset.tab, estado: '' })));
+  $('#histFilters').onsubmit = (e) => {
+    e.preventDefault();
+    const f = e.target;
+    nav({ q: f.q.value.trim(), ano: f.ano ? f.ano.value : '', estado: f.estado.value });
+  };
+};
+
 /* ---------- Traer los datos de otro programa ---------- */
 
 /* Lee un CSV/TXT o un Excel (.xlsx) y devuelve sus filas (la primera, títulos).
@@ -1258,15 +1343,15 @@ async function readXlsx(buf) {
 }
 
 const SOURCE_HELP = {
-  fresha: { name: 'Fresha', steps: ['Clientas: Clientes → Opciones → Exportar (CSV).', 'Servicios: Catálogo → Opciones → Descargar CSV.', 'Citas (también las pasadas): Informes → Lista de citas → todas las fechas → Exportar CSV.', 'Productos: Informes → Inventario o Lista de productos → Exportar.'] },
+  fresha: { name: 'Fresha', steps: ['Clientas: Clientes → Opciones → Exportar (CSV).', 'Servicios: Catálogo → Opciones → Descargar CSV.', 'Citas (también las pasadas): Informes → Lista de citas → todas las fechas → Exportar CSV.', 'Productos: Informes → Inventario o Lista de productos → Exportar.', 'Ventas, cobros y facturas: Informes → Lista de ventas, Resumen de pagos y Facturas → Exportar.', 'Bonos y tarjetas regalo: Ventas → Bonos / Tarjetas regalo → Exportar (si los usas).'] },
   booksy: { name: 'Booksy', steps: ['Clientas: en Booksy Biz (versión web) → Clientes → Exportar a CSV.', 'Citas y servicios: el panel no deja exportarlos. Pide a soporte de Booksy un archivo con tus citas y súbelo aquí.', 'Mientras sigas usando Booksy, las citas nuevas pueden entrar solas: Ajustes → Agenda → calendario externo.'] },
   treatwell: { name: 'Treatwell', steps: ['Treatwell no publica cómo exportar los datos. Pide a su soporte la exportación de clientas, servicios y citas en Excel o CSV.', 'Si tu cuenta ofrece un enlace de calendario (iCal), conéctalo en Ajustes → Agenda para que las citas nuevas entren solas.'] },
-  koibox: { name: 'Koibox', steps: ['Busca en Clientes e Informes la opción «Exportar a Excel».', 'Si no la encuentras, pide a su soporte la exportación de clientas, servicios, citas y ventas.'] },
-  flowww: { name: 'Flowww', steps: ['Busca en Clientes e Informes la opción «Exportar» (Excel o CSV).', 'Si no la encuentras, pide a su soporte la exportación de clientas, servicios, citas y ventas.'] },
-  bewe: { name: 'Bewe', steps: ['Busca en Clientes e Informes la opción «Exportar».', 'Si no la encuentras, pide a su soporte la exportación de clientas, servicios, citas y ventas.'] },
+  koibox: { name: 'Koibox', steps: ['Busca en Clientes e Informes la opción «Exportar a Excel».', 'Para el histórico completo exporta también Caja (movimientos y cierres), Facturas, Deudas o pendientes de cobro y Bonos.', 'Si no la encuentras, pide a su soporte la exportación de clientas, servicios, citas y ventas.'] },
+  flowww: { name: 'Flowww', steps: ['Busca en Clientes e Informes la opción «Exportar» (Excel o CSV).', 'Para el histórico completo exporta también Caja, Facturación, Cobros pendientes y Bonos o tarjetas regalo.', 'Si no la encuentras, pide a su soporte la exportación de clientas, servicios, citas y ventas.'] },
+  bewe: { name: 'Bewe', steps: ['Busca en Clientes e Informes la opción «Exportar».', 'Para el histórico completo exporta también Caja, Facturas, Deudas y Bonos.', 'Si no la encuentras, pide a su soporte la exportación de clientas, servicios, citas y ventas.'] },
   shore: { name: 'Shore', steps: ['Busca en Clientes la opción «Exportar» (CSV o Excel).', 'Para el resto de datos, pide la exportación a su soporte.'] },
   excel: { name: 'Excel propio', steps: ['Si llevas tus clientas o tu menú en una hoja de cálculo, súbela tal cual: reconozco las columnas.', 'Si empiezas de cero, descarga una plantilla, rellénala y súbela.'] },
-  otro: { name: 'Otro programa', steps: ['Casi todos los programas tienen «Exportar a Excel o CSV» en Clientes, Servicios, Agenda e Informes.', 'Si no lo encuentras, pide la exportación a su soporte.'] }
+  otro: { name: 'Otro programa', steps: ['Casi todos los programas tienen «Exportar a Excel o CSV» en Clientes, Servicios, Agenda e Informes.', 'Para todo el histórico, exporta también la Caja (movimientos y cierres), las Facturas, los Cobros pendientes o deudas y los Bonos.', 'Si no lo encuentras, pide la exportación a su soporte.'] }
 };
 
 const KIND_PREVIEW = {
@@ -1274,10 +1359,21 @@ const KIND_PREVIEW = {
   services: [['name', 'Servicio'], ['category', 'Categoría'], ['duration', 'Min'], ['price', 'Precio']],
   products: [['name', 'Producto'], ['kind', 'Uso'], ['price', 'PVP'], ['cost', 'Coste']],
   appointments: [['date', 'Fecha'], ['start', 'Hora'], ['client', 'Clienta'], ['services', 'Servicio'], ['employee', 'Profesional'], ['status', 'Estado']],
-  sales: [['date', 'Fecha'], ['ref', 'Ticket'], ['client', 'Clienta'], ['lines', 'Conceptos'], ['employee', 'Profesional']]
+  sales: [['date', 'Fecha'], ['ref', 'Ticket'], ['client', 'Clienta'], ['lines', 'Conceptos'], ['employee', 'Profesional']],
+  cash: [['date', 'Fecha'], ['direction', 'Tipo'], ['concept', 'Concepto'], ['category', 'Categoría'], ['amount', 'Importe']],
+  closings: [['date', 'Fecha'], ['opening', 'Fondo'], ['expected', 'Esperado'], ['counted', 'Contado'], ['diff', 'Diferencia']],
+  invoices: [['number', 'Factura'], ['date', 'Fecha'], ['client', 'Cliente'], ['base', 'Base'], ['tax', 'IVA'], ['total', 'Total'], ['status', 'Estado']],
+  payments: [['date', 'Fecha'], ['client', 'Cliente'], ['concept', 'Concepto'], ['amount', 'Importe'], ['pending', 'Pendiente'], ['status', 'Estado']],
+  vouchers: [['client', 'Cliente'], ['description', 'Bono'], ['left', 'Quedan'], ['amount', 'Importe'], ['expires', 'Caduca'], ['status', 'Estado']]
 };
 const previewCell = (kind, item, f) => {
   const v = item[f];
+  if (f === 'direction') return v === 'in' ? 'Entrada' : 'Salida';
+  if (f === 'left') return voucherLeft(item);
+  if (['amount', 'base', 'tax', 'total', 'pending', 'opening', 'expected', 'counted', 'diff'].includes(f)) return v == null ? '' : eur(v, 2);
+  if (f === 'status') return (INV_STATUS[v] || PAY_STATUS[v] || VOU_STATUS[v] || [v])[0];
+  if (f === 'expires') return v ? fdate(v) : '';
+  if (f === 'client' && typeof v === 'string') return v;
   if (f === 'services') return (v || []).map((s) => s.name).join(', ');
   if (f === 'client') return v?.name || '';
   if (f === 'lines') return (v || []).map((l) => `${l.name} ${l.total ?? l.price ?? ''}`).join(' · ');
@@ -1291,13 +1387,19 @@ const TEMPLATES = {
   clients: 'Nombre;Apellidos;Teléfono;Email;Género;Fecha de nacimiento;Notas\nAna;García López;600111222;ana@email.com;Mujer;12/04/1990;Alergia a PPD',
   services: 'Servicio;Categoría;Duración;Precio\nCorte y peinado;Corte;45;32\nColor raíz;Color;75;45',
   products: 'Producto;Uso;PVP;Coste\nChampú hidratante;Venta;18;9\nTinte 7.1;Técnico;0;6,5',
-  appointments: 'Fecha;Hora;Duración;Cliente;Teléfono;Servicio;Profesional;Estado;Referencia\n20/10/2026;10:00;45;Ana García López;600111222;Corte y peinado;Laura;Confirmada;C-1001'
+  appointments: 'Fecha;Hora;Duración;Cliente;Teléfono;Servicio;Profesional;Estado;Referencia\n20/10/2026;10:00;45;Ana García López;600111222;Corte y peinado;Laura;Confirmada;C-1001',
+  cash: 'Fecha;Tipo;Concepto;Categoría;Importe;Forma de pago\n01/09/2026;Salida;Compra de toallas;Material;24,50;Efectivo\n01/09/2026;Entrada;Fondo de caja;Caja;150;Efectivo',
+  closings: 'Fecha;Fondo inicial;Esperado;Contado;Diferencia\n01/09/2026;150;435,50;430;-5,50',
+  invoices: 'Serie;Nº factura;Fecha;Cliente;NIF;Concepto;Base imponible;IVA %;Cuota IVA;Total;Estado;Forma de pago\nA;2026-0001;05/09/2026;Ana García López;12345678Z;Mechas;41,32;21;8,68;50,00;Cobrada;Tarjeta',
+  payments: 'Fecha;Cliente;Concepto;Importe;Cobrado;Pendiente;Forma de pago;Nº factura\n10/09/2026;Ana García López;Mechas + tratamiento;120;60;60;Tarjeta;',
+  vouchers: 'Código;Tipo;Cliente;Bono;Sesiones;Sesiones restantes;Importe;Saldo;Fecha compra;Caducidad\nB-001;Bono;Ana García López;Bono 5 tratamientos;5;3;150;;01/06/2026;31/12/2026\nTR-77;Tarjeta regalo;Lucía Pérez;Tarjeta regalo;;;50;50;01/09/2026;01/03/2027'
 };
 
 function resultLine(r) {
   const res = r.result;
-  const what = { clients: 'clientas', services: 'servicios', products: 'productos', appointments: 'citas', sales: 'tickets' }[r.kind];
-  const parts = [`${fmt(res.created)} ${what} nuevas`.replace('servicios nuevas', 'servicios nuevos').replace('productos nuevas', 'productos nuevos').replace('tickets nuevas', 'tickets nuevos')];
+  const what = { clients: 'clientas nuevas', services: 'servicios nuevos', products: 'productos nuevos', appointments: 'citas nuevas', sales: 'tickets nuevos',
+    cash: 'movimientos de caja nuevos', closings: 'cierres de caja nuevos', invoices: 'facturas nuevas', payments: 'cobros nuevos', vouchers: 'bonos y tarjetas nuevos' }[r.kind];
+  const parts = [`${fmt(res.created)} ${what}`];
   if (res.updated) parts.push(`${fmt(res.updated)} se completan o actualizan`);
   if (res.unchanged) parts.push(`${fmt(res.unchanged)} ya estaban`);
   if (r.kind === 'appointments') {
@@ -1305,6 +1407,13 @@ function resultLine(r) {
     if (res.employeesCreated) parts.push(`se añaden ${fmt(res.employeesCreated)} profesionales`);
   }
   if (r.kind === 'sales' && res.revenue) parts.push(`${eur(res.revenue, 2)} en ventas`);
+  if (r.kind === 'cash') {
+    if (res.in || res.out) parts.push(`entradas ${eur(res.in, 2)} · salidas ${eur(res.out, 2)}`);
+    if (res.salesSkipped) parts.push(`${fmt(res.salesSkipped)} entradas de ventas ya importadas no se suman otra vez`);
+  }
+  if (r.kind === 'invoices') parts.push(`${eur(res.total, 2)} facturado${res.pending ? `, ${eur(res.pending, 2)} pendiente` : ''}`);
+  if (r.kind === 'payments') parts.push(`${eur(res.collected, 2)} cobrado${res.pending ? `, ${eur(res.pending, 2)} pendiente` : ''}`);
+  if (r.kind === 'vouchers' && res.active) parts.push(`${fmt(res.active)} activos`);
   if (r.skipped) parts.push(`${fmt(r.skipped)} filas vacías`);
   return parts.join(' · ');
 }
@@ -1315,6 +1424,7 @@ VIEWS.migrar = async (main, { query }) => {
   const files = [];
   main.innerHTML = `
   <header class="page-head"><div><div class="eyebrow">Desde Fresha, Booksy, Treatwell, Koibox, Flowww, Bewe o tu Excel</div><h1>Traer mis datos</h1></div></header>
+  <section class="what-grid" aria-label="Qué puedes traer">${[['Clientas', 'con teléfono, notas y cumpleaños'], ['Servicios y productos', 'precios y duraciones'], ['Citas', 'pasadas y próximas'], ['Ventas', 'todos los tickets'], ['Facturas', 'con NIF, base, IVA y estado'], ['Cobros y deudas', 'lo cobrado y lo pendiente'], ['Bonos y tarjetas regalo', 'sesiones y saldo que quedan'], ['Caja', 'movimientos y cierres']].map(([a, b]) => `<div><b>${a}</b><span>${b}</span></div>`).join('')}</section>
   <section class="card">
     <h2>1 · ¿Qué programa usas ahora?</h2>
     <div class="source-grid" role="group" aria-label="Programa de origen">${Object.entries(SOURCE_HELP).map(([k, v]) => `<button type="button" class="source-btn" data-src="${k}" aria-pressed="${source === k}">${esc(v.name)}</button>`).join('')}</div>
@@ -1322,7 +1432,7 @@ VIEWS.migrar = async (main, { query }) => {
   </section>
   <section class="card">
     <div class="card-head"><h2>2 · Sube los archivos</h2><button type="button" class="btn primary hidden" id="importAll">Importar todo</button></div>
-    <p class="muted" style="margin:0;font-size:14px">Clientas, servicios, productos, citas o ventas, en Excel (.xlsx) o CSV. Puedes subir varios a la vez: reconozco qué es cada uno y te enseño lo que va a entrar antes de guardar nada. Si una clienta ya existe (mismo teléfono o email) solo se completan sus datos.</p>
+    <p class="muted" style="margin:0;font-size:14px">Todo el histórico, en Excel (.xlsx) o CSV. Puedes subir varios a la vez: reconozco qué es cada uno y te enseño lo que va a entrar antes de guardar nada. Si una clienta ya existe (mismo teléfono o email) solo se completan sus datos.</p>
     <label class="dropzone" id="drop"><input type="file" id="migFiles" multiple accept=".csv,.txt,.xlsx,.xls"><b>Elige los archivos</b><span>o arrástralos aquí</span></label>
     <div id="fileCards" style="display:flex;flex-direction:column;gap:14px"></div>
   </section>`;

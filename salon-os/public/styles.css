@@ -496,3 +496,11 @@ dialog.wide { width: min(860px, calc(100vw - 32px)); }
 .bp-bar { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; background: var(--side); color: #F4EFE8; font-size: 14px; }
 .bp-bar .btn { background: #F4EFE8; color: var(--ink); border-color: #F4EFE8; flex-shrink: 0; }
 @media (max-width: 560px) { .bp-note { display: none; } }
+
+/* Qué se puede traer y filtros del histórico */
+.what-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.what-grid div { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 14px; }
+.what-grid span { color: var(--muted); font-size: 12px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.filters .input { width: auto; flex: 1 1 160px; }
+.filters input.input { flex: 3 1 240px; }

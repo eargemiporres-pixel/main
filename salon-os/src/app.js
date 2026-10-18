@@ -12,6 +12,7 @@ import {
 } from './accounts.js';
 import { mailConfigured, sendPlatformEmail } from './mailer.js';
 import { migrate, migrationSchema } from './migration.js';
+import { history, clientMoney } from './history.js';
 import { dashboard } from './metrics.js';
 import { listClients, clientDetail } from './clients.js';
 import { importTickets, importHours, normGender, normTime } from './importer.js';
@@ -213,7 +214,7 @@ export function createApp(db) {
     if (!d) throw notFound('Cliente no encontrado');
     const conversations = db.prepare('SELECT id, channel, status, last_message_at, last_preview, unread FROM conversations WHERE client_id = ? ORDER BY last_message_at DESC').all(d.client.id);
     const appointments = listAppointments(db, salon.id, addDaysIso(nowLocal().date, -1), addDaysIso(nowLocal().date, 120), { clientId: d.client.id }).filter((x) => x.status !== 'cancelada');
-    return { ...d, insights: getInsights(db, d.client.id), conversations, appointments };
+    return { ...d, insights: getInsights(db, d.client.id), conversations, appointments, money: clientMoney(db, salon.id, d.client.id) };
   });
   const clientFields = (b) => {
     const name = str(b.name, 120);
@@ -449,6 +450,13 @@ export function createApp(db) {
   on('POST', '/api/migrate', 'user', (ctx) => {
     const b = ctx.body;
     return migrate(db, salonFor(ctx), { kind: str(b.kind, 20), rows: b.rows, mapping: b.mapping, source: str(b.source, 20), dryRun: b.dryRun !== false });
+  });
+
+  /* --- Histórico: facturas, cobros, bonos y caja --- */
+  on('GET', '/api/history', 'user', (ctx) => {
+    const q = ctx.query;
+    const tab = ['invoices', 'payments', 'vouchers', 'cash'].includes(q.get('tab')) ? q.get('tab') : 'invoices';
+    return history(db, salonFor(ctx).id, { tab, from: q.get('from'), to: q.get('to'), q: str(q.get('q'), 80), status: str(q.get('status'), 20) });
   });
 
   /* --- Ajustes del salón --- */

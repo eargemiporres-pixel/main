@@ -138,3 +138,103 @@ test('columnas elegidas a mano y avisos claros', () => {
   assert.equal(unknown.ok, false);
   assert.match(unknown.error, /No reconozco/);
 });
+
+// Histórico de caja, facturas, cobros y bonos, con columnas como las de los programas en español.
+const CASH = [
+  ['Fecha', 'Tipo', 'Concepto', 'Categoría', 'Importe', 'Forma de pago'],
+  ['01/09/2026', 'Salida', 'Compra de toallas', 'Material', '24,50', 'Efectivo'],
+  ['01/09/2026', 'Entrada', 'Ventas del día', 'Ventas', '310', 'Efectivo'],
+  ['02/09/2026', 'Salida', 'Café', 'Varios', '-3,20', 'Efectivo'],
+  ['02/09/2026', 'Salida', 'Café', 'Varios', '-3,20', 'Efectivo']
+];
+const CASH_DEBE_HABER = [['Fecha', 'Concepto', 'Debe', 'Haber'], ['03/09/2026', 'Fondo de caja', '150', ''], ['03/09/2026', 'Pago proveedor', '', '80']];
+const CLOSINGS = [['Fecha cierre', 'Fondo inicial', 'Saldo teórico', 'Arqueo', 'Descuadre'], ['01/09/2026', '150', '435,50', '430', '-5,50']];
+const INVOICES = [
+  ['Serie', 'Nº factura', 'Fecha emisión', 'Cliente', 'NIF', 'Base imponible', 'Cuota IVA', 'Total', 'Estado'],
+  ['A', '2026-0001', '05/09/2026', 'Ana García López', '12345678Z', '41,32', '8,68', '50,00', 'Cobrada'],
+  ['A', '2026-0002', '06/09/2026', 'Eventos Norte SL', 'B12345678', '200', '42', '242', 'Pendiente'],
+  ['A', '2026-0003', '07/09/2026', 'Pedro Ruiz', '', '', '', '18,15', 'Anulada']
+];
+const PAYMENTS = [
+  ['Fecha', 'Cliente', 'Concepto', 'Importe', 'Entregado', 'Pendiente', 'Forma de pago'],
+  ['10/09/2026', 'Ana García López', 'Mechas + tratamiento', '120', '60', '60', 'Tarjeta'],
+  ['11/09/2026', 'Pedro Ruiz', 'Corte', '18', '18', '0', 'Efectivo']
+];
+const VOUCHERS = [
+  ['Código', 'Cliente', 'Bono', 'Sesiones', 'Sesiones restantes', 'Importe', 'Fecha compra', 'Caducidad'],
+  ['B-001', 'Ana García López', 'Bono 5 tratamientos', '5', '3', '150', '01/06/2026', '31/12/2026'],
+  ['B-002', 'Pedro Ruiz', 'Bono 10 cortes', '10', '0', '160', '01/01/2026', '31/12/2026'],
+  ['TR-77', 'Lucía Pérez', 'Tarjeta regalo', '', '', '50', '01/09/2026', '01/03/2027']
+];
+
+test('reconoce caja, cierres, facturas, cobros y bonos', () => {
+  assert.equal(detectKind(CASH[0]), 'cash');
+  assert.equal(detectKind(CASH_DEBE_HABER[0]), 'cash');
+  assert.equal(detectKind(CLOSINGS[0]), 'closings');
+  assert.equal(detectKind(INVOICES[0]), 'invoices');
+  assert.equal(detectKind(PAYMENTS[0]), 'payments');
+  assert.equal(detectKind(VOUCHERS[0]), 'vouchers');
+  // Los tipos de antes se siguen reconociendo igual.
+  assert.equal(detectKind(SALES[0]), 'sales');
+  assert.equal(detectKind(APPOINTMENTS[0]), 'appointments');
+  assert.equal(detectKind(CLIENTS_ES[0]), 'clients');
+});
+
+test('caja: entradas y salidas, sin duplicar ni contar dos veces las ventas', () => {
+  const { db, salon } = fresh();
+  migrate(db, salon, { kind: 'sales', rows: SALES, dryRun: false }); // hay ventas el 01/09
+  const r = migrate(db, salon, { kind: 'auto', rows: CASH, source: 'koibox', dryRun: false });
+  assert.equal(r.kind, 'cash');
+  assert.equal(r.result.created, 3, 'dos cafés iguales son dos movimientos');
+  assert.equal(r.result.salesSkipped, 1, 'las ventas del día ya están en Ventas');
+  const rows = db.prepare("SELECT date, direction, amount, category, method FROM cash_movements ORDER BY id").all().map((x) => ({ ...x }));
+  assert.deepEqual(rows[0], { date: '2026-09-01', direction: 'out', amount: 24.5, category: 'Material', method: 'efectivo' });
+  assert.equal(rows[1].amount, 3.2);
+  assert.equal(migrate(db, salon, { kind: 'cash', rows: CASH, source: 'koibox', dryRun: false }).result.created, 0, 'reimportar no duplica');
+  const dh = migrate(db, salon, { kind: 'cash', rows: CASH_DEBE_HABER, dryRun: false });
+  assert.deepEqual({ in: dh.result.in, out: dh.result.out }, { in: 150, out: 80 });
+  // Cierres de caja
+  const c = migrate(db, salon, { kind: 'auto', rows: CLOSINGS, dryRun: false });
+  assert.equal(c.kind, 'closings');
+  assert.deepEqual({ ...db.prepare('SELECT opening, expected, counted, diff FROM cash_closings').get() }, { opening: 150, expected: 435.5, counted: 430, diff: -5.5 });
+});
+
+test('facturas: importes, estados, NIF y enlace con la clienta', () => {
+  const { db, salon } = fresh();
+  migrate(db, salon, { kind: 'clients', rows: CLIENTS_EN, dryRun: false });
+  const pre = migrate(db, salon, { kind: 'auto', rows: INVOICES, source: 'flowww' });
+  assert.equal(pre.kind, 'invoices');
+  assert.deepEqual({ c: pre.result.created, total: pre.result.total, pending: pre.result.pending }, { c: 3, total: 292, pending: 242 });
+  migrate(db, salon, { kind: 'invoices', rows: INVOICES, source: 'flowww', dryRun: false });
+  const inv = db.prepare("SELECT * FROM invoices WHERE number = '2026-0001'").get();
+  assert.deepEqual({ base: inv.base, tax: inv.tax, rate: inv.tax_rate, total: inv.total, status: inv.status, paid: inv.paid }, { base: 41.32, tax: 8.68, rate: 21, total: 50, status: 'pagada', paid: 50 });
+  assert.equal(inv.client_id, db.prepare("SELECT id FROM clients WHERE name = 'Ana García López'").get().id);
+  assert.equal(db.prepare('SELECT tax_id FROM clients WHERE id = ?').get(inv.client_id).tax_id, '12345678Z');
+  const company = db.prepare("SELECT * FROM invoices WHERE number = '2026-0002'").get();
+  assert.deepEqual({ status: company.status, paid: company.paid, client: company.client_id }, { status: 'pendiente', paid: 0, client: null }, 'las empresas no se convierten en clientas');
+  assert.equal(db.prepare("SELECT status FROM invoices WHERE number = '2026-0003'").get().status, 'anulada');
+  // Al reimportar con la factura ya cobrada, se actualiza.
+  const later = [INVOICES[0], INVOICES[1], ['A', '2026-0002', '06/09/2026', 'Eventos Norte SL', 'B12345678', '200', '42', '242', 'Cobrada']];
+  const r = migrate(db, salon, { kind: 'invoices', rows: later, source: 'flowww', dryRun: false });
+  assert.equal(r.result.updated, 2);
+  assert.equal(db.prepare("SELECT status FROM invoices WHERE number = '2026-0002'").get().status, 'pagada');
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM invoices').get().n, 3);
+});
+
+test('cobros y deudas, y bonos con sesiones restantes', () => {
+  const { db, salon } = fresh();
+  migrate(db, salon, { kind: 'clients', rows: CLIENTS_EN, dryRun: false });
+  migrate(db, salon, { kind: 'clients', rows: CLIENTS_ES, dryRun: false });
+  const p = migrate(db, salon, { kind: 'auto', rows: PAYMENTS, dryRun: false });
+  assert.equal(p.kind, 'payments');
+  assert.deepEqual({ collected: p.result.collected, pending: p.result.pending }, { collected: 78, pending: 60 });
+  assert.equal(db.prepare("SELECT status FROM payments WHERE client_name = 'Ana García López'").get().status, 'parcial');
+  const v = migrate(db, salon, { kind: 'auto', rows: VOUCHERS, dryRun: false });
+  assert.equal(v.kind, 'vouchers');
+  assert.equal(v.result.active, 2);
+  const ana = { ...db.prepare("SELECT kind, sessions_total, sessions_used, status, client_id FROM vouchers WHERE code = 'B-001'").get() };
+  assert.deepEqual({ ...ana, client_id: !!ana.client_id }, { kind: 'bono', sessions_total: 5, sessions_used: 2, status: 'activo', client_id: true });
+  assert.equal(db.prepare("SELECT status FROM vouchers WHERE code = 'B-002'").get().status, 'agotado');
+  const card = db.prepare("SELECT kind, balance, status FROM vouchers WHERE code = 'TR-77'").get();
+  assert.deepEqual({ ...card }, { kind: 'tarjeta', balance: 50, status: 'activo' });
+});

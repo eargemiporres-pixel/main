@@ -167,9 +167,15 @@ node web-demo/build.mjs        # genera web-demo/dist, publicable en cualquier h
    viene (Fresha, Booksy, Treatwell, Koibox, Flowww, Bewe, Shore, Excel propio u
    otro) y ve cómo descargar sus datos de ese programa. Después sube los
    archivos, en Excel (`.xlsx`) o CSV, varios a la vez:
-   - Reconoce qué contiene cada archivo (clientas, servicios, productos, citas o
-     ventas) y qué columna es cada dato, en español o en inglés. Las columnas se
-     pueden corregir a mano.
+   - Reconoce qué contiene cada archivo y qué columna es cada dato, en español o
+     en inglés: clientas, servicios, productos, citas, ventas, **movimientos y
+     cierres de caja, facturas (serie, número, NIF, base, IVA, total y estado),
+     cobros y deudas, y bonos y tarjetas regalo** (sesiones y saldo que quedan).
+     Las columnas se pueden corregir a mano.
+   - Las entradas de caja que son ventas de un día cuyas ventas ya se importaron
+     no se suman otra vez. Las facturas a empresas no crean clientas.
+   - Todo ese histórico se consulta en *Facturas y cobros*, y la ficha de cada
+     clienta muestra sus bonos activos, sus facturas y lo que tiene pendiente.
    - Enseña lo que va a entrar antes de guardar nada.
    - Una clienta que ya existe (mismo teléfono o email) no se duplica: solo se
      completan los datos que le faltan. Reimportar el mismo archivo no cambia nada.
