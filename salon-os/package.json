@@ -11,7 +11,7 @@
     "start": "node server.js",
     "demo": "node scripts/demo.js",
     "demo:reset": "node scripts/demo.js --reset",
-    "test": "node --test test/core.test.js test/api.test.js test/messaging.test.js test/times.test.js test/agenda.test.js test/accounts.test.js test/migration.test.js"
+    "test": "node --test test/core.test.js test/api.test.js test/messaging.test.js test/times.test.js test/agenda.test.js test/accounts.test.js test/migration.test.js test/assistant.test.js"
   },
   "optionalDependencies": {
     "@anthropic-ai/sdk": "^0.133.0"

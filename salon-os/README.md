@@ -264,7 +264,8 @@ docker run -p 3000:3000 -v salon-data:/data \
 | `COOKIE_SECURE=1` | cookie de sesión solo por HTTPS (actívalo en producción) |
 | `WA_VERIFY_TOKEN` | token para verificar el webhook de WhatsApp en Meta |
 | `WA_APP_SECRET` | *App secret* de Meta: comprueba la firma de cada aviso de WhatsApp |
-| `ANTHROPIC_API_KEY` | opcional: resumen de clientes con IA (requiere `npm install`) |
+| `ANTHROPIC_API_KEY` | asistente de WhatsApp con IA y resumen de clientes con IA |
+| `AI_REPLY_DELAY_MS` | espera antes de que la IA responda, para juntar mensajes seguidos (8000) |
 | `PUBLIC_URL` | dirección pública (`https://app.tudominio.es`) para los enlaces de los emails |
 | `SIGNUP=0` | cierra el alta libre de salones (abierta por defecto) |
 | `TRIAL_DAYS` | días de prueba gratuita en el alta libre (30 por defecto) |
@@ -274,6 +275,30 @@ docker run -p 3000:3000 -v salon-data:/data \
 
 Copias de seguridad: basta con copiar el archivo `.db`, por ejemplo con
 `sqlite3 salon-os.db ".backup copia.db"`.
+
+## Asistente de WhatsApp con IA
+
+*Ajustes → Asistente de WhatsApp con IA.* Responde por WhatsApp como una
+recepcionista experta en peluquería, con el menú, los precios, el equipo, el
+horario y la información que el salón le escribe.
+
+- Busca huecos reales en la agenda antes de ofrecer horas, pide los datos que
+  faltan (servicio, día, profesional, nombre), repite el resumen y agenda solo
+  cuando la clienta confirma. También consulta, mueve y anula sus citas.
+- Dos modos:
+  - **Propone y tú envías** (recomendado para empezar): prepara la respuesta en
+    Mensajes y no toca la agenda.
+  - **Responde y agenda sola**.
+- Pasa la conversación al equipo, y deja de contestar en ella, en quejas,
+  temas de salud, descuentos o presupuestos especiales, o si la clienta lo pide.
+  Si alguien del equipo escribe a mano, la IA también se pausa en esa
+  conversación hasta que se reactive.
+- Solo puede ver y tocar las citas de la persona con la que habla.
+- Espera unos segundos (`AI_REPLY_DELAY_MS`, 8000 por defecto) por si la clienta
+  manda varios mensajes seguidos.
+- Hay un simulador para probarlo sin enviar nada, y un botón «Sugerir respuesta
+  con IA» en cada conversación.
+- Usa Claude (`claude-opus-5-5`) con `ANTHROPIC_API_KEY` en el servidor.
 
 ## Cuentas, equipo y prueba gratuita
 

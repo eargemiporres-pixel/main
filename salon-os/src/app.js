@@ -13,6 +13,7 @@ import {
 import { mailConfigured, sendPlatformEmail } from './mailer.js';
 import { migrate, migrationSchema } from './migration.js';
 import { history, clientMoney } from './history.js';
+import { assistantSettings, runAssistant, scheduleAutoReply } from './assistant.js';
 import { dashboard } from './metrics.js';
 import { listClients, clientDetail } from './clients.js';
 import { importTickets, importHours, normGender, normTime } from './importer.js';
@@ -851,7 +852,7 @@ export function createApp(db) {
     const salon = salonFor(ctx);
     return { ...listConversations(db, salon.id, { filter: ctx.query.get('filter') || 'abiertas', q: ctx.query.get('q') || '' }), channels: channelStatus(channelsFor(db, salon.id)) };
   });
-  on('GET', '/api/conversations/:id', 'team', (ctx) => {
+  on('GET', '/api/conversations/:id', 'team', async (ctx) => {
     const salon = salonFor(ctx);
     const d = conversationDetail(db, salon.id, Number(ctx.params.id));
     if (!d) throw notFound('Conversación no encontrada');
@@ -862,7 +863,8 @@ export function createApp(db) {
       templates: db.prepare('SELECT id, kind, name, body FROM message_templates WHERE salon_id = ? ORDER BY id').all(salon.id),
       employees: db.prepare('SELECT id, name FROM employees WHERE salon_id = ? AND active = 1 ORDER BY name').all(salon.id),
       channels: channelStatus(channelsFor(db, salon.id)),
-      salonName: salon.name
+      salonName: salon.name,
+      ai: { ...assistantSettings(salon), available: await aiAvailable() }
     };
   });
   /* Mensaje nuevo a un cliente (o a un teléfono/email). Crea la conversación si no existe. */
@@ -889,7 +891,11 @@ export function createApp(db) {
   on('POST', '/api/conversations/:id/messages', 'team', async (ctx) => {
     const salon = salonFor(ctx);
     const conv = owned('conversations', Number(ctx.params.id), salon.id);
-    return sendMessage(db, salon, conv, ctx.body.text, { author: authorName(ctx.user), template: str(ctx.body.template, 40) || null });
+    const out = await sendMessage(db, salon, conv, ctx.body.text, { author: ctx.body.from_ai ? 'IA' : authorName(ctx.user), template: str(ctx.body.template, 40) || null });
+    // Si alguien del equipo escribe a mano, la IA deja de responder en esta conversación hasta que se reactive.
+    const pause = !ctx.body.from_ai && salon.ai_enabled ? 1 : conv.ai_paused;
+    db.prepare("UPDATE conversations SET ai_draft = '', ai_paused = ? WHERE id = ?").run(pause, conv.id);
+    return { ...out, ai_paused: !!pause };
   });
   on('PUT', '/api/conversations/:id', 'team', (ctx) => {
     const salon = salonFor(ctx);
@@ -899,9 +905,44 @@ export function createApp(db) {
     if (ctx.body.assigned_to !== undefined) assigned = ctx.body.assigned_to ? owned('employees', Number(ctx.body.assigned_to), salon.id).id : null;
     let clientId = conv.client_id;
     if (ctx.body.client_id) clientId = owned('clients', Number(ctx.body.client_id), salon.id).id;
-    db.prepare('UPDATE conversations SET status = ?, assigned_to = ?, client_id = ? WHERE id = ?').run(status, assigned, clientId, conv.id);
+    const paused = ctx.body.ai_paused === undefined ? conv.ai_paused : ctx.body.ai_paused ? 1 : 0;
+    db.prepare('UPDATE conversations SET status = ?, assigned_to = ?, client_id = ?, ai_paused = ?, ai_note = CASE WHEN ? = 0 THEN \'\' ELSE ai_note END WHERE id = ?')
+      .run(status, assigned, clientId, paused, paused, conv.id);
+    if (ctx.body.discard_draft) db.prepare("UPDATE conversations SET ai_draft = '' WHERE id = ?").run(conv.id);
     if (clientId && clientId !== conv.client_id) refreshClientInsights(db, salon.id, clientId);
     return { ok: true };
+  });
+
+  /* --- Asistente de WhatsApp con IA --- */
+  on('GET', '/api/assistant', 'user', async (ctx) => {
+    const salon = salonFor(ctx);
+    return { ...assistantSettings(salon), ai: await aiAvailable(), whatsapp: channelStatus(channelsFor(db, salon.id)).whatsapp };
+  });
+  on('PUT', '/api/assistant', 'user', (ctx) => {
+    const salon = salonFor(ctx);
+    const b = ctx.body;
+    db.prepare('UPDATE salons SET ai_enabled = ?, ai_mode = ?, ai_name = ?, ai_info = ?, ai_when = ? WHERE id = ?').run(
+      b.enabled ? 1 : 0, b.mode === 'auto' ? 'auto' : 'borrador', str(b.name, 60), str(b.info, 4000), b.when === 'fuera_horario' ? 'fuera_horario' : 'siempre', salon.id);
+    return { ok: true };
+  });
+  // Simulador: el dueño escribe como si fuera una clienta. No envía nada ni guarda citas.
+  on('POST', '/api/assistant/test', 'user', async (ctx) => {
+    const salon = salonFor(ctx);
+    const turns = Array.isArray(ctx.body.turns) ? ctx.body.turns.slice(-30).map((t) => ({ role: t.role === 'assistant' ? 'assistant' : 'user', content: str(t.content, 2000) })).filter((t) => t.content) : [];
+    if (!turns.length || turns.at(-1).role !== 'user') throw bad('Escribe un mensaje de prueba');
+    const r = await runAssistant(db, salon, { id: 0, client_id: null, contact: '', contact_name: 'Clienta de prueba' }, { turns, dryRun: true, canWrite: true });
+    if (r.error) throw new HttpError(503, r.error);
+    return r;
+  });
+  // Respuesta sugerida por la IA para una conversación (el equipo la revisa y la envía).
+  on('POST', '/api/conversations/:id/ai-draft', 'team', async (ctx) => {
+    const salon = salonFor(ctx);
+    const conv = owned('conversations', Number(ctx.params.id), salon.id);
+    const r = await runAssistant(db, salon, conv, { canWrite: false });
+    if (r.error) throw new HttpError(503, r.error);
+    if (r.skipped) throw bad('No hay ningún mensaje de la clienta pendiente de responder');
+    if (r.reply) db.prepare('UPDATE conversations SET ai_draft = ? WHERE id = ?').run(r.reply, conv.id);
+    return { reply: r.reply, handoff: r.handoff };
   });
 
   on('GET', '/api/templates', 'team', (ctx) => {
@@ -1021,7 +1062,8 @@ export function createApp(db) {
         if (st) db.prepare("UPDATE messages SET status = ? WHERE salon_id = ? AND external_id = ? AND direction = 'out'").run(st, ch.salon_id, m.externalId);
         continue;
       }
-      recordInbound(db, ch.salon_id, { channel: 'whatsapp', from: m.from, name: m.name, body: m.body, externalId: m.externalId, at: m.at });
+      const r = recordInbound(db, ch.salon_id, { channel: 'whatsapp', from: m.from, name: m.name, body: m.body, externalId: m.externalId, at: m.at });
+      if (r.conversationId) scheduleAutoReply(db, ch.salon_id, r.conversationId);
       received++;
     }
     return { ok: true, received };
@@ -1035,7 +1077,10 @@ export function createApp(db) {
       const channel = ['whatsapp', 'email', 'sms', 'instagram', 'web'].includes(m.channel) ? m.channel : 'whatsapp';
       if (!m.from || !m.body) return errors.push({ index: i, error: 'faltan from o body' });
       const r = recordInbound(db, salon.id, { channel, from: String(m.from), name: str(m.name, 120), body: str(m.body, 4000), externalId: m.id ? `${channel}:${m.id}` : null, at: m.at || null });
-      if (r.conversationId) saved++;
+      if (r.conversationId) {
+        saved++;
+        if (channel === 'whatsapp') scheduleAutoReply(db, salon.id, r.conversationId);
+      }
     });
     return { saved, errors };
   });

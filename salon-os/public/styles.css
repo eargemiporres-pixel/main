@@ -504,3 +504,15 @@ dialog.wide { width: min(860px, calc(100vw - 32px)); }
 .filters { display: flex; gap: 8px; flex-wrap: wrap; }
 .filters .input { width: auto; flex: 1 1 160px; }
 .filters input.input { flex: 3 1 240px; }
+
+/* Asistente de WhatsApp con IA */
+.ai-draft { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--plum); background: var(--plum-soft); }
+.ai-draft p { margin: 0; white-space: pre-wrap; font-size: 14px; }
+.ai-paused { justify-content: space-between; flex-wrap: wrap; }
+.bubble.by-ai { box-shadow: inset 3px 0 0 var(--ochre); }
+.ai-mark { color: var(--ochre); }
+.sim { display: flex; flex-direction: column; gap: 8px; min-height: 180px; max-height: 360px; overflow-y: auto; padding: 12px; border-radius: 12px; background: var(--soft); border: 1px solid var(--line); }
+.sim .bubble { max-width: 85%; }
+.sim .bubble.in { align-self: flex-start; }
+.sim .bubble.out { align-self: flex-end; }
+#aiForm .check { align-items: flex-start; }

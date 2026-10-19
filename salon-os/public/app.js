@@ -1657,9 +1657,11 @@ VIEWS.ajustes = async (main) => {
       <p class="muted" style="font-size:13px;margin:0">Plan: ${esc(s.plan)} · sesión de ${esc(S.me.user.email)}</p>
     </form>
   </section>
+  <section class="card" id="assistant"><div class="loading">Cargando asistente…</div></section>
   <section class="card" id="teamUsers"><div class="loading">Cargando usuarios…</div></section>
   <section class="card" id="booking"><div class="loading">Cargando agenda…</div></section>
   <section class="card" id="channels"><div class="loading">Cargando canales…</div></section>`;
+  renderAssistant($('#assistant'));
   renderTeamUsers($('#teamUsers'));
   renderBookingSettings($('#booking'));
   renderChannels($('#channels'));
@@ -1680,6 +1682,70 @@ VIEWS.ajustes = async (main) => {
     catch (err) { toast(err.message, true); }
   };
 };
+
+/* Asistente de WhatsApp con IA: ajustes y simulador para probarlo. */
+async function renderAssistant(el) {
+  const a = await api('/api/assistant');
+  const ready = a.ai && a.whatsapp === 'api';
+  el.innerHTML = `<div class="card-head"><div><h2>Asistente de WhatsApp con IA</h2><p class="muted" style="margin:4px 0 0;font-size:14px">Responde a tus clientas por WhatsApp como una recepcionista experta en peluquería: resuelve dudas, busca huecos reales y agenda. Lo que no sabe o no debe resolver, te lo pasa.</p></div>
+      <span class="tag ${a.enabled ? 'green' : ''}">${a.enabled ? (a.mode === 'auto' ? 'Responde sola' : 'Propone respuestas') : 'Desactivado'}</span></div>
+    ${!a.ai ? '<div class="notice info">Para usarlo hay que añadir la clave de la IA en el servidor (<b>ANTHROPIC_API_KEY</b> en Render). Mientras tanto puedes dejarlo configurado.</div>' : ''}
+    ${a.ai && a.whatsapp !== 'api' ? '<div class="notice info">La IA está lista, pero tu WhatsApp aún no está conectado (Ajustes → Canales). Hasta entonces, prepara las respuestas como sugerencias en Mensajes.</div>' : ''}
+    <div class="grid g2">
+      <form id="aiForm" class="channel">
+        <label class="check"><input type="checkbox" name="enabled" ${a.enabled ? 'checked' : ''}> Activar el asistente en WhatsApp</label>
+        <div class="field">Cómo trabaja
+          <label class="check"><input type="radio" name="mode" value="borrador" ${a.mode !== 'auto' ? 'checked' : ''}> <span><b>Propone y tú envías.</b> Prepara cada respuesta en Mensajes y tú la apruebas. No toca la agenda. Recomendado para empezar.</span></label>
+          <label class="check"><input type="radio" name="mode" value="auto" ${a.mode === 'auto' ? 'checked' : ''}> <span><b>Responde y agenda sola.</b> Contesta al momento y reserva, cambia o anula citas después de que la clienta confirme.${ready ? '' : ' Necesita la IA y el WhatsApp conectados; si no, deja la respuesta como sugerencia.'}</span></label>
+        </div>
+        <label class="field">Cuándo responde<select name="when"><option value="siempre" ${a.when !== 'fuera_horario' ? 'selected' : ''}>Siempre</option><option value="fuera_horario" ${a.when === 'fuera_horario' ? 'selected' : ''}>Solo cuando el salón está cerrado</option></select></label>
+        <label class="field">Nombre con el que firma (opcional)<input name="name" value="${esc(a.name)}" placeholder="Por ejemplo: Marta"></label>
+        <label class="field">Lo que debe saber de tu salón<textarea name="info" rows="6" placeholder="Dirección y cómo llegar, aparcamiento, formas de pago, política de cancelación, prueba de alergia antes del color, marcas de producto que usáis, si atendéis a niños…">${esc(a.info)}</textarea><span class="hint">El menú, los precios, el equipo y el horario ya los conoce.</span></label>
+        <div class="form-actions"><button class="btn primary" type="submit">Guardar</button></div>
+      </form>
+      <div class="channel">
+        <h3>Pruébalo como si fueras una clienta</h3>
+        <p class="muted" style="margin:0;font-size:13px">No se envía nada y las citas no se guardan de verdad.</p>
+        <div class="sim" id="sim"><div class="muted" style="font-size:13px">Escribe, por ejemplo: «Hola, ¿tenéis hueco el jueves por la tarde para mechas?»</div></div>
+        <form id="simForm" class="composer-row"><input class="input" id="simText" placeholder="Escribe como clienta…" aria-label="Mensaje de prueba" ${a.ai ? '' : 'disabled'}><button class="btn" type="submit" ${a.ai ? '' : 'disabled'}>Enviar</button></form>
+        <button type="button" class="btn small ghost" id="simReset" style="align-self:flex-start">Empezar de nuevo</button>
+      </div>
+    </div>`;
+  $('#aiForm', el).onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      await api('/api/assistant', { method: 'PUT', body: { enabled: f.enabled.checked, mode: f.mode.value, when: f.when.value, name: f.name.value, info: f.info.value } });
+      toast('Asistente guardado');
+      renderAssistant(el);
+    } catch (err) { toast(err.message, true); }
+  };
+  let turns = [];
+  const sim = $('#sim', el);
+  const draw = (extra = '') => {
+    sim.innerHTML = turns.map((t) => `<div class="bubble ${t.role === 'user' ? 'in' : 'out'}"><div>${esc(t.content)}</div></div>`).join('') + extra;
+    sim.scrollTop = sim.scrollHeight;
+  };
+  $('#simReset', el).onclick = () => { turns = []; sim.innerHTML = '<div class="muted" style="font-size:13px">Conversación vacía.</div>'; };
+  $('#simForm', el).onsubmit = async (e) => {
+    e.preventDefault();
+    const input = $('#simText', el);
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    turns.push({ role: 'user', content: text });
+    draw('<div class="muted" style="font-size:13px">Escribiendo…</div>');
+    try {
+      const r = await api('/api/assistant/test', { method: 'POST', body: { turns } });
+      if (r.reply) turns.push({ role: 'assistant', content: r.reply });
+      const notes = [
+        ...(r.actions || []).map((x) => ({ cita_creada: 'Cita creada', cita_movida: 'Cita movida', cita_cancelada: 'Cita anulada' }[x.type] + (x.date ? ` · ${x.date} ${x.start || ''}` : '') + ' (prueba)')),
+        ...(r.handoff ? [`Pasaría la conversación al equipo: ${r.handoff}`] : [])
+      ];
+      draw(notes.map((n) => `<div class="tag amber" style="align-self:center">${esc(n)}</div>`).join(''));
+    } catch (err) { turns.pop(); draw(`<div class="down" style="font-size:13px">${esc(err.message)}</div>`); }
+  };
+}
 
 /* Usuarios del salón: el dueño da acceso a su equipo. */
 const ROLE_LABEL = { owner: 'Dueño/a · ve todo', staff: 'Equipo · agenda, cobros, caja, clientes y mensajes' };
@@ -2068,8 +2134,8 @@ async function renderInbox(box, id) {
       const day = toDate(m.created_at).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
       const sep = day !== lastDay ? `<div class="day-sep"><span>${esc(day)}</span></div>` : '';
       lastDay = day;
-      const meta = [toDate(m.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }), m.direction === 'out' ? MSG_STATUS[m.status] || m.status : '', m.author && m.direction === 'out' ? m.author : ''].filter(Boolean).join(' · ');
-      return `${sep}<div class="bubble ${m.direction} ${m.status === 'error' ? 'failed' : ''}"><div>${esc(m.body)}</div><small>${esc(meta)}${m.error ? ` · ${esc(m.error)}` : ''}</small></div>`;
+      const meta = [toDate(m.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }), m.direction === 'out' ? MSG_STATUS[m.status] || m.status : '', m.author && m.direction === 'out' && m.author !== 'IA' ? m.author : ''].filter(Boolean).join(' · ');
+      return `${sep}<div class="bubble ${m.direction} ${m.status === 'error' ? 'failed' : ''} ${m.author === 'IA' ? 'by-ai' : ''}"><div>${esc(m.body)}</div><small>${m.author === 'IA' ? '<b class="ai-mark">IA</b> · ' : ''}${esc(meta)}${m.error ? ` · ${esc(m.error)}` : ''}</small></div>`;
     }).join('');
     $('#thread').innerHTML = `
       <div class="thread-head">
@@ -2082,9 +2148,13 @@ async function renderInbox(box, id) {
       <div class="messages" id="msgs">${bubbles || '<div class="empty">Sin mensajes todavía.</div>'}</div>
       <form class="composer" id="composer">
         ${notice}
+        ${d.ai.enabled && conv.ai_paused ? `<div class="notice info ai-paused"><span><b>La IA no responde en esta conversación.</b> ${conv.ai_note ? `Motivo: ${esc(conv.ai_note)}.` : 'Alguien del equipo ha tomado la conversación.'}</span><button type="button" class="btn small" id="aiResume">Volver a activar la IA</button></div>` : ''}
+        ${conv.ai_draft ? `<div class="ai-draft"><div class="block-title">Respuesta sugerida por la IA</div><p>${esc(conv.ai_draft)}</p>
+          <div class="appt-actions"><button type="button" class="btn small primary" id="draftSend">Enviar tal cual</button><button type="button" class="btn small" id="draftEdit">Editar</button><button type="button" class="btn small ghost" id="draftDrop">Descartar</button></div></div>` : ''}
         ${mode === 'api' && conv.channel === 'whatsapp' && !d.windowOpen ? '<div class="notice info">Han pasado más de 24 h desde su último mensaje: WhatsApp solo deja enviar plantillas aprobadas por Meta. Si falla, te daremos un enlace para enviarlo desde el móvil.</div>' : ''}
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <select class="input small-select" id="tplPick" aria-label="Plantilla"><option value="">Plantillas…</option>${d.templates.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>
+          ${d.ai.available ? '<button type="button" class="btn small" id="aiSuggest">Sugerir respuesta con IA</button>' : ''}
           <span class="muted" style="font-size:12px;align-self:center">${mode === 'api' ? `Se envía por ${CHANNEL[conv.channel]} al momento.` : `Modo manual: se guarda aquí y te damos un enlace para enviarlo.`}</span>
         </div>
         <div class="composer-row">
@@ -2105,16 +2175,38 @@ async function renderInbox(box, id) {
       $('#msgText').focus();
     };
     $('#msgText').onkeydown = (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('#composer').requestSubmit(); };
-    $('#composer').onsubmit = async (e) => {
-      e.preventDefault();
-      const text = $('#msgText').value.trim();
-      if (!text) return;
+    // Respuesta de la IA: enviarla, editarla antes o descartarla. Editar y enviar cuenta como aprobada.
+    let fromAi = false;
+    const send = async (text) => {
       try {
-        const r = await api(`/api/conversations/${cid}/messages`, { method: 'POST', body: { text, template: kind } });
+        const r = await api(`/api/conversations/${cid}/messages`, { method: 'POST', body: { text, template: kind, from_ai: fromAi } });
         if (r.status === 'error' && !r.link) toast(`No se pudo enviar: ${r.error}`, true);
         await loadThread(cid, r.link ? manualSendNotice(r.link, conv.channel) : '');
         loadList();
       } catch (err) { toast(err.message, true); }
+    };
+    const resume = $('#aiResume');
+    if (resume) resume.onclick = async () => { await api(`/api/conversations/${cid}`, { method: 'PUT', body: { ai_paused: false } }); toast('La IA vuelve a responder en esta conversación'); loadThread(cid); };
+    if ($('#draftSend')) {
+      $('#draftSend').onclick = () => { fromAi = true; send(conv.ai_draft); };
+      $('#draftEdit').onclick = () => { fromAi = true; $('#msgText').value = conv.ai_draft; $('#msgText').focus(); };
+      $('#draftDrop').onclick = async () => { await api(`/api/conversations/${cid}`, { method: 'PUT', body: { discard_draft: true } }); loadThread(cid); };
+    }
+    const suggest = $('#aiSuggest');
+    if (suggest) suggest.onclick = async () => {
+      suggest.disabled = true;
+      suggest.textContent = 'Pensando…';
+      try {
+        const r = await api(`/api/conversations/${cid}/ai-draft`, { method: 'POST', body: {} });
+        if (r.handoff) toast(`La IA recomienda que responda una persona: ${r.handoff}`);
+        await loadThread(cid);
+      } catch (err) { toast(err.message, true); suggest.disabled = false; suggest.textContent = 'Sugerir respuesta con IA'; }
+    };
+    $('#composer').onsubmit = async (e) => {
+      e.preventDefault();
+      const text = $('#msgText').value.trim();
+      if (!text) return;
+      return send(text);
     };
 
     const side = $('#side');

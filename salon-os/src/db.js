@@ -367,7 +367,16 @@ const MIGRATIONS = [
   ['clients', 'import_source', "TEXT DEFAULT ''"],
   ['clients', 'tax_id', "TEXT DEFAULT ''"],
   // Movimientos de caja importados: la referencia evita duplicados al reimportar.
-  ['cash_movements', 'external_ref', 'TEXT']
+  ['cash_movements', 'external_ref', 'TEXT'],
+  // Asistente de WhatsApp con IA.
+  ['salons', 'ai_enabled', 'INTEGER DEFAULT 0'],
+  ['salons', 'ai_mode', "TEXT DEFAULT 'borrador'"],
+  ['salons', 'ai_name', "TEXT DEFAULT ''"],
+  ['salons', 'ai_info', "TEXT DEFAULT ''"],
+  ['salons', 'ai_when', "TEXT DEFAULT 'siempre'"],
+  ['conversations', 'ai_paused', 'INTEGER DEFAULT 0'],
+  ['conversations', 'ai_draft', "TEXT DEFAULT ''"],
+  ['conversations', 'ai_note', "TEXT DEFAULT ''"]
 ];
 
 /* La primera versión solo admitía los roles admin y owner. SQLite no deja

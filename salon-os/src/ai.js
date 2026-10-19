@@ -18,6 +18,9 @@ async function getClient() {
   return clientPromise;
 }
 
+/* Cliente compartido con el asistente de WhatsApp. */
+export const getAiClient = getClient;
+
 export async function aiAvailable() {
   return Boolean(await getClient());
 }
