@@ -250,9 +250,8 @@
     if (!s.length) res.notes.push('No hemos encontrado servicios en el archivo. Mira que tenga una columna con el nombre del servicio y otra con precio o importe.');
     else {
       if (miss('min')) res.notes.push('Falta la duración de ' + miss('min') + ' servicio' + (miss('min') > 1 ? 's' : '') + '. Los programas de gestión casi nunca la incluyen. Complétala en la lista.');
-      if (miss('veces')) res.notes.push('No hemos podido saber cuántas veces se hizo ' + (miss('veces') > 1 ? 'cada servicio' : 'un servicio') + ' al mes. Complétalo en la lista.');
       if (miss('precio')) res.notes.push('Falta el precio de ' + miss('precio') + ' servicio' + (miss('precio') > 1 ? 's' : '') + '.');
-      if (res.guess) res.notes.push('El archivo no tiene títulos de columna claros. Hemos adivinado precio y cantidad: revisa cada línea.');
+      if (res.guess) res.notes.push('El archivo no tiene títulos de columna claros. Hemos adivinado qué número es el precio: revisa cada línea.');
     }
     return res;
   }
