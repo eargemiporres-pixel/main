@@ -121,9 +121,14 @@ factura cada minuto del equipo, qué servicios no compensan, cuánto dinero deja
 de ganar al mes / 6 meses / 12 meses y dónde podría estar con un precio mínimo
 por minuto (0,80 / 0,85 / 1,00 / otro).
 
+Datos que pide: personas, horas medias a la semana por empleado (se elige con
+botones: 20, 25... 50 u otro), clientes y facturación del mes, y para cada
+servicio solo precio y minutos. No pide cuántas veces se hace cada servicio:
+reparte la facturación a partes iguales entre los servicios de la lista.
+
 - `calculadora/index.html`: página y cálculo.
 - `calculadora/import.js`: lector de archivos. Acepta **CSV** y **PDF con texto**,
-  detecta las columnas (servicio, precio, duración, cantidad, importe, cliente,
+  detecta las columnas (servicio, precio, duración, importe, cliente,
   profesional) y rellena los datos para que la persona solo revise. El archivo
   se procesa en el navegador y no se envía a ningún sitio. Los PDF usan
   pdf.js, que se carga desde cdnjs.
