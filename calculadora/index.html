@@ -542,7 +542,11 @@ function salonMissing(){
 }
 function refreshSalon(){
   var P=num(S.personas),C=num(S.clientes),F=num(S.factura), chips=[];
-  if(C>0&&F>0) chips.push('<span class="chip-info">Ticket medio <b>'+eur(F/C,2)+'</b></span>');
+  if(C>0&&F>0){
+    var tk=F/C, tc=(tk>=50&&tk<=100)?'good':'warn';
+    var tt=tk<50?'por debajo de 50 €':(tk>100?'por encima de 100 €':'dentro de 50–100 €');
+    chips.push('<span class="chip-info '+tc+'">Ticket medio <b>'+eur(tk,2)+'</b>, '+tt+'</span>');
+  }
   if(C>0&&P>0){
     var c=C/P, cls=(c>=80&&c<=120)?'good':'warn';
     var t=c<80?'por debajo de 80':(c>120?'por encima de 120':'dentro de 80–120');
@@ -639,7 +643,8 @@ function viewResumen(o){
   }
   var c=o.cpp, cc=(c>=80&&c<=120)?'green':'amber', ct=c<80?'Pocos: el objetivo es 80–120':(c>120?'Muchos: el objetivo es 80–120':'Dentro de 80–120');
   var rows='<div class="row"><div class="l"><b>Clientes por persona</b><span>al mes</span></div><div class="r"><strong>'+fmt(c,0)+'</strong><span class="pill '+cc+'">'+ct+'</span></div></div>';
-  rows+='<div class="row"><div class="l"><b>Ticket medio</b><span>facturación ÷ clientes</span></div><div class="r"><strong>'+eur(o.ticket,2)+'</strong></div></div>';
+  var tkc=(o.ticket>=50&&o.ticket<=100)?'green':'amber', tkt=o.ticket<50?'Bajo: el objetivo es 50–100 €':(o.ticket>100?'Alto: el objetivo es 50–100 €':'Dentro de 50–100 €');
+  rows+='<div class="row"><div class="l"><b>Ticket medio</b><span>facturación ÷ clientes</span></div><div class="r"><strong>'+eur(o.ticket,2)+'</strong><span class="pill '+tkc+'">'+tkt+'</span></div></div>';
   if(o.hasSv){
     var rc=o.okShare>=0.6?'green':'red';
     rows+='<div class="row"><div class="l"><b>Servicios que llegan al mínimo</b><span>'+(o.sv.length-o.bad.length)+' de '+o.sv.length+'</span></div><div class="r"><strong>'+fmt(o.okShare*100,0)+'%</strong><span class="pill '+rc+'">Objetivo: 60%</span></div></div>';
@@ -719,7 +724,7 @@ function summaryText(o){
     t+='Servicios que llegan al mínimo: '+fmt(o.okShare*100,0)+'% (objetivo 60%).\n';
     if(o.gainTotal>0) t+='Potencial: +'+eur(o.gainTotal)+' al mes, +'+eur(o.gainTotal*12)+' en 12 meses.\n';
   }
-  t+='Clientes por persona: '+fmt(o.cpp,0)+'. Ticket medio: '+eur(o.ticket,2)+'.';
+  t+='Clientes por persona: '+fmt(o.cpp,0)+' (objetivo 80–120). Ticket medio: '+eur(o.ticket,2)+' (objetivo 50–100 €).';
   return t;
 }
 

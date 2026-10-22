@@ -125,6 +125,8 @@ Datos que pide: personas, horas medias a la semana por empleado (se elige con
 botones: 20, 25... 50 u otro), clientes y facturación del mes, y para cada
 servicio solo precio y minutos. No pide cuántas veces se hace cada servicio:
 reparte la facturación a partes iguales entre los servicios de la lista.
+Referencias de salud: 80–120 clientes por persona, ticket medio de 50 a 100 €
+y 60 % de servicios que llegan al mínimo por minuto.
 
 - `calculadora/index.html`: página y cálculo.
 - `calculadora/import.js`: lector de archivos. Acepta **CSV** y **PDF con texto**,
