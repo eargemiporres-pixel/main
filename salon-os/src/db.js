@@ -376,7 +376,9 @@ const MIGRATIONS = [
   ['salons', 'ai_when', "TEXT DEFAULT 'siempre'"],
   ['conversations', 'ai_paused', 'INTEGER DEFAULT 0'],
   ['conversations', 'ai_draft', "TEXT DEFAULT ''"],
-  ['conversations', 'ai_note', "TEXT DEFAULT ''"]
+  ['conversations', 'ai_note', "TEXT DEFAULT ''"],
+  // Guías de la aplicación que cada persona ya ha visto (lista JSON).
+  ['users', 'guides', "TEXT DEFAULT '[]'"]
 ];
 
 /* La primera versión solo admitía los roles admin y owner. SQLite no deja

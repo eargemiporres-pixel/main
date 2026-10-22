@@ -516,3 +516,122 @@ dialog.wide { width: min(860px, calc(100vw - 32px)); }
 .sim .bubble.in { align-self: flex-start; }
 .sim .bubble.out { align-self: flex-end; }
 #aiForm .check { align-items: flex-start; }
+
+/* ==========================================================================
+   Tema SalonPro, igual que la web: fondos blancos, cajetines grises y detalles
+   morados. Titulares en Instrument Sans negrita; Fraunces solo para el logo.
+   ========================================================================== */
+:root, body.console {
+  --bg: #FFFFFF;
+  --surface: #F6F5F8;
+  --soft: #FFFFFF;
+  --ink: #17131A;
+  --ink-2: #47404A;
+  --muted: #6E6670;
+  --line: #E6E3EA;
+  --line-2: #EEECF1;
+  --plum: #6E2A4E;
+  --plum-dark: #4E1C37;
+  --plum-soft: #F3E9EF;
+  --side: #6E2A4E;
+  --side-2: #5A2240;
+  --side-ink: #F7EEF3;
+  --side-muted: #E3CCD8;
+  --display: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --brand-font: 'Fraunces', Georgia, serif;
+}
+body { background: #FFFFFF; }
+
+/* Menú lateral blanco con el apartado activo en morado */
+.side { background: #FFFFFF; color: var(--ink-2); border-right: 1px solid var(--line); }
+.brand b { font-family: var(--brand-font); color: var(--ink); display: inline-flex; align-items: center; gap: 9px; }
+.brand b::before { content: "S"; width: 30px; height: 30px; border-radius: 9px; background: var(--plum); color: #fff; font-family: var(--body); font-size: 15px; font-weight: 700; display: inline-grid; place-items: center; flex-shrink: 0; }
+.brand span { color: var(--muted); }
+.nav-label { color: var(--muted); }
+.nav a { color: var(--ink-2); font-weight: 500; }
+.nav a:hover { background: var(--surface); color: var(--ink); }
+.nav a[aria-current="page"] { background: var(--plum-soft); color: var(--plum); font-weight: 700; }
+.nav a[aria-current="page"] svg { color: var(--plum); }
+.side-card { background: var(--surface); color: var(--muted); }
+.side-card strong { color: var(--ink); }
+.side select { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.side .link-btn, body.console .side .link-btn { border-color: var(--line); color: var(--ink-2); background: #FFFFFF; }
+.side .link-btn:hover { border-color: var(--plum); color: var(--plum); }
+.nav-badge { background: var(--plum); color: #fff; }
+
+/* Titulares como en la web */
+.page-head h1, dialog h2, .login-form h2, .login-art h1, .card.dark h2 { font-family: var(--display); font-weight: 700; letter-spacing: -0.03em; }
+.page-head h1 { font-size: 36px; }
+.kpi .v, .growth-row .big, .signal .days, .step .n { font-family: var(--display); font-weight: 700; letter-spacing: -0.03em; }
+.login-art b { font-family: var(--brand-font); }
+
+/* Cajetines grises */
+.card, .kpi, .bench, .signal, .demo-box, .file-card, .what-grid div, .source-btn, .avail-day { background: var(--surface); border-color: var(--line); }
+.card .card, .card .kpi { background: #FFFFFF; }
+.bench span { background: #FFFFFF; }
+.field input, .field select, .field textarea, .input, .avail-filters select, .avail-filters input { background: #FFFFFF; border-color: #DCD8E0; }
+.field input:focus, .field select:focus, .field textarea:focus, .input:focus { border-color: var(--plum); outline: none; box-shadow: 0 0 0 3px var(--plum-soft); }
+
+/* Botones con forma de píldora, como en la web */
+.btn { border-radius: 999px; background: #FFFFFF; border-color: var(--line); }
+.btn:hover { border-color: var(--plum); color: var(--plum); }
+.btn.primary, .btn.primary:hover { color: #fff; }
+.btn.dark { background: var(--plum); border-color: var(--plum); color: #fff; }
+.btn.dark:hover { background: var(--plum-dark); color: #fff; }
+.btn.ghost { background: transparent; border-color: transparent; }
+.icon-btn { background: #FFFFFF; }
+
+/* Detalles morados en selectores y pestañas */
+.seg, body.console .seg { background: var(--surface); border: 1px solid var(--line); }
+.seg button[aria-pressed="true"], body.console .seg button[aria-pressed="true"] { background: var(--plum); color: #fff; }
+.chip { border-color: var(--line); background: #FFFFFF; }
+.chip[aria-pressed="true"] { background: var(--plum); border-color: var(--plum); color: #fff; }
+.source-btn[aria-pressed="true"] { background: var(--plum); border-color: var(--plum); color: #fff; }
+.tag { background: var(--line-2); }
+.slot { background: #FFFFFF; }
+
+/* Bloques destacados en morado (antes oscuros) */
+.card.dark, .kpi.dark { background: var(--plum); border-color: var(--plum); color: #fff; }
+.kpi.dark .k, .kpi.dark .d, .tip p, .advice p { color: var(--side-muted); }
+.tip .t { color: #F2C98E; }
+.login-art { background: var(--plum); }
+.login-art p, .login-art span { color: var(--side-muted) !important; }
+.login-form { background: #FFFFFF; }
+.bp-bar { background: var(--plum); }
+.toast { background: var(--ink); }
+dialog::backdrop { background: rgba(23, 19, 26, 0.45); }
+
+/* Mensajes */
+.bubble.in { background: var(--surface); border-color: var(--line); }
+
+/* Guía de cada sección */
+.guide { display: flex; flex-direction: column; gap: 14px; padding: 20px 22px; border-radius: var(--radius); background: #FFFFFF; border: 2px solid var(--plum-soft); box-shadow: 0 10px 30px rgba(110, 42, 78, 0.08); }
+.guide-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.guide-head h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; }
+.guide-head p { margin: 4px 0 0; color: var(--ink-2); font-size: 15px; }
+.guide-tag { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--plum); }
+.guide-head .icon-btn { font-size: 20px; line-height: 1; flex-shrink: 0; }
+.guide-head .icon-btn:hover { color: var(--plum); border-color: var(--plum); }
+.guide-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.guide-steps li { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
+.guide-steps .n { width: 28px; height: 28px; border-radius: 50%; background: var(--plum); color: #fff; font-weight: 700; font-size: 14px; display: grid; place-items: center; flex-shrink: 0; }
+.guide-steps b { font-size: 15px; }
+.guide-steps p { margin: 4px 0 8px; font-size: 13.5px; color: var(--ink-2); line-height: 1.45; }
+.guide-steps li > div { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.guide-foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+.help-fab { position: fixed; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px 0 8px; border-radius: 999px; border: none; background: var(--plum); color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; box-shadow: 0 10px 26px rgba(110, 42, 78, 0.3); }
+.help-fab span { width: 28px; height: 28px; border-radius: 50%; background: rgba(255, 255, 255, 0.2); display: grid; place-items: center; }
+.help-fab:hover { background: var(--plum-dark); }
+.guide-flash { animation: guideFlash 2.2s ease; }
+@keyframes guideFlash { 0%, 60% { box-shadow: 0 0 0 4px var(--plum); } 100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .guide-flash { animation: none; outline: 3px solid var(--plum); } }
+dialog.welcome { width: min(600px, calc(100vw - 32px)); }
+.welcome-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.welcome-list li { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.welcome-list span { color: var(--ink-2); font-size: 14px; }
+@media (max-width: 900px) {
+  .side { border-right: none; border-bottom: 1px solid var(--line); }
+  .guide { padding: 16px; }
+  .help-fab { right: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+}
+@media print { .help-fab, .guide { display: none !important; } }

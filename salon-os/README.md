@@ -276,6 +276,15 @@ docker run -p 3000:3000 -v salon-data:/data \
 Copias de seguridad: basta con copiar el archivo `.db`, por ejemplo con
 `sqlite3 salon-os.db ".backup copia.db"`.
 
+## Guías dentro de la aplicación
+
+La primera vez que alguien entra ve una bienvenida, distinta para el dueño, el
+equipo y el distribuidor. En cada sección aparece una guía corta con los pasos
+para configurarla y usarla, con botones «Llévame» y «Hazlo ahora» que llevan al
+sitio o abren la acción (por ejemplo, el enlace de reservas). El botón «Guía»,
+abajo a la derecha, la vuelve a abrir cuando se quiera. Qué guías ha visto cada
+persona se guarda en su usuario.
+
 ## Asistente de WhatsApp con IA
 
 *Ajustes → Asistente de WhatsApp con IA.* Responde por WhatsApp como una

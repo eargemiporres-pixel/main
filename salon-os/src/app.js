@@ -135,6 +135,17 @@ export function createApp(db) {
     };
   });
 
+  /* Guías de la aplicación: cuáles ha visto ya cada persona. */
+  on('POST', '/api/me/guides', 'team', ({ user, body }) => {
+    let seen = [];
+    try { seen = JSON.parse(user.guides || '[]'); } catch { seen = []; }
+    if (body.reset) seen = [];
+    const key = str(body.key, 30);
+    if (key && !seen.includes(key)) seen.push(key);
+    db.prepare('UPDATE users SET guides = ? WHERE id = ?').run(JSON.stringify(seen.slice(0, 100)), user.id);
+    return { guides: seen };
+  });
+
   /* --- Alta libre y recuperar la contraseña --- */
   const signups = rateLimiter(5, 3600000);
   const forgots = rateLimiter(5, 3600000);

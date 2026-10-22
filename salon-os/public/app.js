@@ -243,7 +243,8 @@ async function render() {
       </div>
     </aside>
     <div class="main-col">${trialBar()}<main class="main" id="main"><div class="loading">Cargando…</div></main></div>
-  </div>`;
+  </div>
+  ${guideFor(page) ? '<button type="button" class="help-fab" id="helpBtn" aria-label="Abrir la guía de esta sección"><span aria-hidden="true">?</span> Guía</button>' : ''}`;
   $('#logout').onclick = async () => { await api('/api/logout', { method: 'POST', body: {} }).catch(() => {}); S.me = null; store.clear(); go('#/'); render(); };
   const myPw = $('#myPassword');
   if (myPw) myPw.onclick = () => openForm({
@@ -267,6 +268,10 @@ async function render() {
   } catch (err) {
     main.innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
   }
+  const help = $('#helpBtn');
+  if (help) help.onclick = () => { showGuide(page, main, { force: true }); main.scrollIntoView?.({ block: 'start' }); window.scrollTo(0, 0); };
+  S.page = page;
+  welcomeDialog(() => { const m = $('#main'); if (m) showGuide(S.page, m); });
   main.focus?.();
 }
 
@@ -283,6 +288,272 @@ async function refreshUnread() {
     b.classList.toggle('hidden', !r.unread);
     b.setAttribute('aria-label', `${r.unread} sin leer`);
   } catch { /* sin conexión */ }
+}
+
+/* ---------- Guías de cada sección ----------
+   Una guía corta para el dueño y otra para el equipo. Se abre sola la primera
+   vez que alguien entra en una sección y siempre desde el botón «Guía».
+   Cada paso puede llevar a otra sección (go) y pulsar un botón (click). */
+const GUIDES = {
+  panel: {
+    owner: {
+      title: 'Panel del salón', intro: 'Tus números del mes, al día con cada cobro.',
+      steps: [
+        { t: 'Lee los indicadores', d: 'Facturación, ticket medio, precio hora, clientes y ocupación. Cambia entre Mes, Trimestre y Año, o elige otro mes con la fecha.' },
+        { t: 'Sigue los «Primeros pasos»', d: 'Mientras te falte algo por configurar, la tarjeta de arriba te dice qué hacer y te lleva a cada sitio.' },
+        { t: 'Mira las recomendaciones', d: 'Al final del panel tienes lo que conviene hacer este mes, con el impacto en euros.' }
+      ]
+    }
+  },
+  agenda: {
+    owner: {
+      title: 'Agenda', intro: 'Las citas de la semana por persona del equipo, y tu página para que las clientas reserven solas.',
+      steps: [
+        { t: 'Configura tu horario', d: 'En Ajustes → «Agenda y reservas online» marca los días que abres y a qué hora. La agenda y las reservas online solo ofrecen huecos dentro de ese horario.', go: '#/ajustes', click: '#booking' },
+        { t: 'Crea una cita', d: 'Pulsa «Nueva cita», elige el servicio y verás los huecos libres de los próximos días. Toca uno, elige la clienta y listo. El reparto entre el equipo se hace solo.', click: '#newAppt' },
+        { t: 'Comparte tu enlace de reservas', d: 'Pulsa «Compartir reservas online»: copia el enlace o envíalo por WhatsApp. Ponlo en la biografía de Instagram y en Google como «Reservar».', click: '#shareBooking' },
+        { t: 'Gestiona cada cita', d: 'Toca una cita para confirmarla, cambiarla de hora, marcar «No vino», empezar el servicio (mide el tiempo real) o cobrarla.' },
+        { t: '¿Ya usas Booksy, Treatwell o Google Calendar?', d: 'En Ajustes → «Agenda y reservas online» pega el enlace iCal de tu calendario y sus citas entrarán solas aquí.', go: '#/ajustes', click: '#booking' }
+      ]
+    },
+    staff: {
+      title: 'Agenda', intro: 'Tus citas y las del equipo de la semana.',
+      steps: [
+        { t: 'Ve solo tus citas', d: 'En el desplegable «Todo el equipo» elige tu nombre.' },
+        { t: 'Crea una cita', d: 'Pulsa «Nueva cita», elige el servicio, toca uno de los huecos libres y elige a la clienta.', click: '#newAppt' },
+        { t: 'Cuando llegue la clienta', d: 'Toca su cita y pulsa «Empezar servicio». Al terminar, «Cobrar» y el cobro sale ya rellenado.' },
+        { t: 'Envía el enlace de reservas', d: 'Si una clienta quiere reservar ella misma, pulsa «Compartir reservas online» y mándaselo por WhatsApp.', click: '#shareBooking' }
+      ]
+    }
+  },
+  cobro: {
+    all: {
+      title: 'Nuevo cobro', intro: 'Cobra en cuatro toques. Cada cobro actualiza la caja, la ficha de la clienta y los números del salón.',
+      steps: [
+        { t: 'Elige la clienta', d: 'Búscala por nombre o teléfono, o créala en el momento con «nueva».' },
+        { t: 'Añade servicios y productos', d: 'Toca cada servicio o producto y se suma al ticket. Puedes cambiar el precio o la cantidad en el ticket.' },
+        { t: 'Indica quién la ha atendido y cómo paga', d: 'Elige la persona del equipo y la forma de pago (tarjeta, efectivo, Bizum…).' },
+        { t: 'Pulsa «Cobrar»', d: 'Consejo: si al sentar a la clienta pulsas «Empezar servicio», SalonPro mide cuánto ha durado de verdad y el cobro sale ya preparado.' }
+      ]
+    }
+  },
+  caja: {
+    all: {
+      title: 'Caja', intro: 'Lo que entra y sale cada día, y el cierre con el efectivo contado.',
+      steps: [
+        { t: 'Revisa el día', d: 'Arriba ves lo cobrado por forma de pago y el resultado del día. Cambia la fecha para ver otro día.' },
+        { t: 'Apunta gastos e ingresos', d: 'Una compra de toallas, el cambio que metes en caja… con «Añadir gasto o ingreso».' },
+        { t: 'Cierra la caja', d: 'Al final del día cuenta el efectivo, escríbelo en «Arqueo de efectivo» y pulsa cerrar. Te dice si cuadra.' }
+      ]
+    }
+  },
+  clientes: {
+    all: {
+      title: 'Clientes', intro: 'La ficha de cada clienta se rellena sola con sus visitas, compras y mensajes.',
+      steps: [
+        { t: 'Busca y filtra', d: 'Por nombre o teléfono, o por grupos: fieles, en riesgo, nuevas, perdidas.' },
+        { t: 'Abre su ficha', d: 'Visitas, cada cuántos días viene, ticket medio, servicios favoritos, bonos, facturas y si debe algo.' },
+        { t: 'Actúa desde la ficha', d: '«Escribir» para mandarle un WhatsApp, «Nueva cita» o «Nuevo cobro».' }
+      ]
+    }
+  },
+  mensajes: {
+    owner: {
+      title: 'Mensajes', intro: 'El WhatsApp del salón en un solo sitio para todo el equipo.',
+      steps: [
+        { t: 'Conecta tu WhatsApp', d: 'En Ajustes → «Canales de comunicación». Mientras no esté conectado, escribes aquí y te damos un enlace para enviarlo desde el móvil.', go: '#/ajustes', click: '#channels' },
+        { t: 'Activa el asistente con IA', d: 'En Ajustes → «Asistente de WhatsApp con IA»: responde dudas y agenda citas. Empieza en modo «Propone y tú envías».', go: '#/ajustes', click: '#assistant' },
+        { t: 'Responde y organiza', d: 'Abre una conversación, contesta o usa una plantilla. Márcala como pendiente o cerrada, o asígnala a alguien del equipo.' },
+        { t: 'Envía los recordatorios del día', d: 'En «Recordatorios» tienes a quién le toca volver, quién se aleja y las citas de mañana, con el mensaje ya escrito.' }
+      ]
+    },
+    staff: {
+      title: 'Mensajes', intro: 'Los WhatsApp que llegan al salón.',
+      steps: [
+        { t: 'Responde', d: 'Abre la conversación y escribe, o elige una plantilla.' },
+        { t: 'Respuestas de la IA', d: 'Si aparece una «Respuesta sugerida por la IA», revísala y pulsa «Enviar tal cual» o «Editar».' },
+        { t: 'Organiza', d: 'Marca la conversación como pendiente si hay que hacer algo, o cerrada cuando esté resuelta.' }
+      ]
+    }
+  },
+  equipo: {
+    owner: {
+      title: 'Equipo y horas', intro: 'Quién trabaja en el salón y cuánto rinde cada persona.',
+      steps: [
+        { t: 'Añade a tu equipo', d: 'Nombre y puesto de cada persona. Así aparecen en la agenda y en los cobros.', click: '#addEmp' },
+        { t: 'Registra las horas del mes', d: 'Con las horas reales, el precio hora y la ocupación son exactos.' },
+        { t: 'Dales acceso a la app', d: 'En Ajustes → «Usuarios y accesos» crea su usuario. El equipo solo ve agenda, cobros, caja, clientes y mensajes.', go: '#/ajustes', click: '#teamUsers' }
+      ]
+    }
+  },
+  catalogo: {
+    owner: {
+      title: 'Servicios y productos', intro: 'Tu menú con precios y duraciones: la agenda y los cobros salen de aquí.',
+      steps: [
+        { t: 'Carga tu menú', d: 'Añade cada servicio con su precio y su duración. Si empiezas de cero, usa el menú típico desde el Panel y ajústalo.', click: '#addSrv' },
+        { t: 'Cuida las duraciones', d: 'La agenda usa la duración para buscar huecos, y los tiempos reales te dirán si están bien.' },
+        { t: 'Añade productos', d: 'De venta (para la clienta) o técnicos (de uso en el salón, para medir el consumo).', click: '#addPrd' }
+      ]
+    }
+  },
+  tiempos: {
+    owner: {
+      title: 'Tiempos y rentabilidad', intro: 'Cuánto dura cada servicio de verdad y cuánto ganas por minuto.',
+      steps: [
+        { t: 'Mide el tiempo real', d: 'El equipo pulsa «Empezar servicio» al sentar a la clienta y cobra al terminar.' },
+        { t: 'Compara con el menú', d: 'Minutos reales frente a los del menú, por servicio y por persona.' },
+        { t: 'Ajusta precios', d: 'Los servicios por debajo de 0,85 €/min aparecen marcados con el precio al que conviene subirlos.' }
+      ]
+    }
+  },
+  pedidos: {
+    owner: {
+      title: 'Pedidos de producto', intro: 'Lo que compras a tu proveedor, para controlar el consumo de producto técnico.',
+      steps: [
+        { t: 'Apunta cada pedido', d: 'Fecha, importe y si es técnico o de venta.', click: '#addOrder' },
+        { t: 'Vigila el consumo', d: 'El Panel compara el producto técnico con lo facturado en servicios y te avisa si se dispara.' }
+      ]
+    }
+  },
+  historico: {
+    owner: {
+      title: 'Facturas y cobros', intro: 'Todo el histórico de facturas, deudas, bonos y caja.',
+      steps: [
+        { t: 'Elige la pestaña', d: 'Facturas, Cobros y deudas, Bonos y tarjetas, o Caja.' },
+        { t: 'Filtra', d: 'Busca por cliente o número, y filtra por año y estado.' },
+        { t: 'Trae tu histórico', d: 'Si vienes de otro programa, súbelo desde «Traer mis datos».', go: '#/migrar' }
+      ]
+    }
+  },
+  migrar: {
+    owner: {
+      title: 'Traer mis datos', intro: 'Pasa a SalonPro todo lo que tienes en tu programa anterior.',
+      steps: [
+        { t: 'Elige tu programa', d: 'Te digo dónde está la opción de exportar en Fresha, Booksy, Treatwell, Koibox, Flowww…' },
+        { t: 'Sube los archivos', d: 'Excel o CSV, varios a la vez. Reconozco qué es cada uno.' },
+        { t: 'Revisa y pulsa «Importar todo»', d: 'Te enseño lo que va a entrar antes de guardar. No se duplica nada.' }
+      ]
+    }
+  },
+  importar: {
+    owner: {
+      title: 'Conectar TPV', intro: 'Para que las ventas de tu TPV entren sin teclearlas.',
+      steps: [
+        { t: 'Importa ventas', d: 'Exporta las ventas de tu TPV a Excel o CSV y súbelas. Revisa antes de importar.' },
+        { t: 'Conexión automática', d: 'Si tu TPV o un integrador puede enviar datos, genera la clave del salón y compártela con ellos.' }
+      ]
+    }
+  },
+  ajustes: {
+    owner: {
+      title: 'Ajustes', intro: 'Todo lo que configura tu salón, de arriba abajo.',
+      steps: [
+        { t: 'Datos del salón', d: 'Nombre, ciudad, horas por persona y fondo de caja.' },
+        { t: 'Asistente de WhatsApp con IA', d: 'Actívalo, cuéntale lo que debe saber de tu salón y pruébalo en el simulador.', click: '#assistant' },
+        { t: 'Usuarios y accesos', d: 'Da acceso a cada persona del equipo con su email.', click: '#teamUsers' },
+        { t: 'Agenda y reservas online', d: 'Tu horario, tu enlace de reservas y otros calendarios conectados.', click: '#booking' },
+        { t: 'Canales', d: 'Conecta tu WhatsApp de empresa y el email.', click: '#channels' }
+      ]
+    }
+  },
+  consola: {
+    admin: {
+      title: 'Tu red de salones', intro: 'Todos tus salones clientes de un vistazo.',
+      steps: [
+        { t: 'Señales de compra', d: 'Qué salones necesitan producto pronto, con el pedido sugerido.' },
+        { t: 'Asesorías', d: 'Salones en riesgo y oportunidades para tu próxima visita.' },
+        { t: 'Da de alta salones', d: 'Desde «Dar de alta un salón» o desde las solicitudes de la web. Con «Plan» cambias plan, cuota y prueba.', click: '#addSalon' },
+        { t: 'Entra en un salón', d: 'Con «Ver panel» ves su SalonPro como lo ve el dueño, y con «Reporte» descargas su informe en Excel.' }
+      ]
+    }
+  },
+  reporte: {
+    admin: {
+      title: 'Reporte del salón', intro: 'El informe para tu visita de asesoría.',
+      steps: [
+        { t: 'Elige salón y periodo', d: 'Arriba a la izquierda el salón, y aquí el mes, trimestre o año.' },
+        { t: 'Descárgalo', d: 'En Excel para compartirlo, o imprímelo.' }
+      ]
+    }
+  }
+};
+
+const roleKey = () => (isAdmin() ? 'admin' : isStaff() ? 'staff' : 'owner');
+function guideFor(page) {
+  const g = GUIDES[page];
+  if (!g) return null;
+  const r = roleKey();
+  // El distribuidor que entra en un salón ve las guías del dueño.
+  return g[r] || g.all || (r === 'admin' ? g.owner : null);
+}
+function guidesSeen() {
+  try { return JSON.parse(S.me.user.guides || '[]'); } catch { return []; }
+}
+async function markGuide(key) {
+  try {
+    const r = await api('/api/me/guides', { method: 'POST', body: { key }, salon: false });
+    S.me.user.guides = JSON.stringify(r.guides);
+  } catch { /* sin conexión: se volverá a mostrar */ }
+}
+
+/* Espera a que aparezca un elemento (la sección puede tardar en cargar). */
+function whenReady(sel, timeout = 4000) {
+  return new Promise((resolve) => {
+    const t0 = Date.now();
+    const tick = () => { const el = $(sel); if (el || Date.now() - t0 > timeout) resolve(el); else setTimeout(tick, 120); };
+    tick();
+  });
+}
+async function guideAction(step) {
+  if (step.go && !location.hash.startsWith(step.go)) go(step.go);
+  if (!step.click) return;
+  const el = await whenReady(step.click);
+  if (!el) return;
+  if (el.tagName === 'BUTTON' || el.tagName === 'A') el.click();
+  else { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); el.classList.add('guide-flash'); setTimeout(() => el.classList.remove('guide-flash'), 2200); }
+}
+
+function showGuide(page, main, { force = false } = {}) {
+  $('#guideCard')?.remove();
+  const g = guideFor(page);
+  if (!g || (!force && guidesSeen().includes(page))) return;
+  const card = document.createElement('section');
+  card.id = 'guideCard';
+  card.className = 'guide';
+  card.setAttribute('aria-label', `Guía de ${g.title}`);
+  card.innerHTML = `
+    <div class="guide-head"><div><span class="guide-tag">Guía rápida</span><h2>${esc(g.title)}</h2><p>${esc(g.intro)}</p></div>
+      <button type="button" class="icon-btn" data-gclose aria-label="Cerrar la guía">×</button></div>
+    <ol class="guide-steps">${g.steps.map((s, i) => `<li><span class="n">${i + 1}</span><div><b>${esc(s.t)}</b><p>${esc(s.d)}</p>
+      ${s.click || s.go ? `<button type="button" class="btn small" data-gstep="${i}">${s.click && !s.go && ['#newAppt', '#shareBooking', '#addUser', '#addEmp', '#addSrv', '#addPrd', '#addOrder', '#addSalon'].includes(s.click) ? 'Hazlo ahora' : 'Llévame'}</button>` : ''}</div></li>`).join('')}</ol>
+    <div class="guide-foot"><button type="button" class="btn small primary" data-gdone>Entendido</button><span class="muted">Vuelve a verla cuando quieras con el botón «Guía».</span></div>`;
+  main.prepend(card);
+  const done = () => { card.remove(); if (!guidesSeen().includes(page)) markGuide(page); };
+  $('[data-gclose]', card).onclick = done;
+  $('[data-gdone]', card).onclick = done;
+  $$('[data-gstep]', card).forEach((b) => (b.onclick = () => { const step = g.steps[Number(b.dataset.gstep)]; if (step.go) done(); guideAction(step); }));
+}
+
+/* Bienvenida: la primera vez que alguien entra, qué hay en cada sección. */
+function welcomeDialog(onClose = () => {}) {
+  if (guidesSeen().includes('bienvenida')) return onClose();
+  // render() puede ejecutarse dos veces seguidas al entrar: una sola bienvenida.
+  if ($('dialog.welcome')) return;
+  const r = roleKey();
+  const items = r === 'staff'
+    ? [['Agenda', 'Tus citas y las del equipo; crea citas y envía el enlace de reservas.'], ['Nuevo cobro', 'Cobra servicios y productos en cuatro toques.'], ['Caja', 'Gastos del día y cierre con el efectivo contado.'], ['Clientes', 'La ficha de cada clienta, con sus bonos y lo que debe.'], ['Mensajes', 'El WhatsApp del salón para todo el equipo.']]
+    : r === 'admin'
+      ? [['Red de salones', 'Tus salones, señales de compra y asesorías.'], ['Ver salón', 'Entra en cualquier salón como lo ve su dueño.'], ['Reporte', 'El informe en Excel para cada visita.']]
+      : [['1 · Traer mis datos', 'Clientas, servicios, citas e histórico de tu programa anterior.'], ['2 · Servicios y equipo', 'Tu menú con precios y duraciones, y las personas del salón.'], ['3 · Agenda', 'Tu horario y tu enlace para que las clientas reserven solas.'], ['4 · Mensajes e IA', 'Tu WhatsApp conectado y el asistente que responde y agenda.'], ['5 · Usuarios', 'Da acceso a tu equipo desde Ajustes.']];
+  const dlg = document.createElement('dialog');
+  dlg.className = 'welcome';
+  dlg.innerHTML = `<form method="dialog"><span class="guide-tag">Bienvenida</span><h2>${r === 'staff' ? `Hola${S.me.user.name ? `, ${esc(S.me.user.name.split(' ')[0])}` : ''}. Esto es lo que vas a usar` : r === 'admin' ? 'Tu consola de distribuidor' : 'Pon tu salón en marcha en una tarde'}</h2>
+    <ul class="welcome-list">${items.map(([a, b]) => `<li><b>${esc(a)}</b><span>${esc(b)}</span></li>`).join('')}</ul>
+    <p class="muted" style="margin:0;font-size:14px">En cada sección verás una guía corta la primera vez. Puedes volver a abrirla cuando quieras con el botón <b>Guía</b>, abajo a la derecha.</p>
+    <div class="form-actions"><button class="btn primary" type="submit">Empezar</button></div></form>`;
+  document.body.appendChild(dlg);
+  dlg.addEventListener('close', () => { dlg.remove(); markGuide('bienvenida'); onClose(); });
+  dlg.showModal();
 }
 
 /* Aviso de la prueba gratuita: días que quedan o prueba terminada. */

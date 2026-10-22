@@ -31,7 +31,7 @@ export function createSession(db, userId) {
 
 export function sessionUser(db, token) {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
-  return db.prepare(`SELECT u.id, u.email, u.name, u.role, u.salon_id, u.employee_id FROM sessions s JOIN users u ON u.id = s.user_id
+  return db.prepare(`SELECT u.id, u.email, u.name, u.role, u.salon_id, u.employee_id, u.guides FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token = ? AND s.expires_at > ? AND u.active = 1`).get(token, new Date().toISOString()) || null;
 }
 
