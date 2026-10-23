@@ -457,9 +457,17 @@ function calc(){
   o.revMin=F/o.paidMin; o.ticket=F/C; o.cpp=C/P;
   o.gap=Math.max(0,obj*o.paidMin-F);
   o.belowCost=o.revMin<S.coste;
-  o.extraClients=Math.max(0,80*P-C);
-  o.gain3=o.extraClients*o.ticket;
-  o.gain1=0; o.gain2=0; o.gainTotal=0; o.FB=F; o.revMinB=o.revMin; o.movedMin=0;
+  o.gain1=0; o.gain2=0; o.movedMin=0;
+  function closeB(){
+    // El punto B siempre llega al mínimo elegido: lo que no cubren precios y mix son huecos de agenda.
+    o.gainPrice=o.gain1+o.gain2;
+    o.gainAgenda=Math.max(0,o.gap-o.gainPrice);
+    o.gainTotal=o.gainPrice+o.gainAgenda;
+    o.extraClients=o.gainAgenda/o.ticket;
+    o.cppB=(C+o.extraClients)/P;
+    o.FB=F+o.gainTotal; o.revMinB=o.FB/o.paidMin;
+  }
+  closeB();
 
   var sv=S.services.map(function(s){return {id:s.id,name:s.name,precio:num(s.precio),min:num(s.min)}})
     .filter(function(s){return s.precio>0&&s.min>0});
@@ -492,8 +500,7 @@ function calc(){
   var ppmGood=goodM>0?sumOf(good,function(s){return s.precio})/goodM:hi;
   o.movedMin=Math.max(0,o.redTimeShare-0.4)*o.chairMin;
   o.gain2=o.movedMin*Math.max(0,ppmGood-obj);
-  o.FB=F+o.gain1+o.gain2; o.revMinB=o.FB/o.paidMin;
-  o.gainTotal=o.gain1+o.gain2;
+  closeB();
   return o;
 }
 
@@ -687,10 +694,12 @@ function viewDespues(o){
   var nBad=o.sv.filter(function(s){return s.gain>0.5}).length;
   var rows='<div class="row"><div class="l"><b>Cobrar al menos '+eur(o.obj,2)+' cada minuto</b><span>'+(nBad?nBad+(nBad===1?' servicio sube':' servicios suben'):'Ya lo cumples')+'</span></div><div class="r"><strong>'+(o.gain1>0?'+'+eur(o.gain1):'0 €')+'</strong></div></div>';
   rows+='<div class="row"><div class="l"><b>60% del tiempo en servicios que llegan al mínimo</b><span>'+(o.movedMin>0?'Pasar unas '+fmt(o.movedMin/60,0)+' h al mes de servicios en rojo a los que sí compensan'+(o.goodEstimated?' (estimado a '+eur(o.hi,2)+'/min)':''):'Ya lo cumples')+'</span></div><div class="r"><strong>'+(o.gain2>0?'+'+eur(o.gain2):'0 €')+'</strong></div></div>';
+  if(o.gainAgenda>0.5){
+    var cx=Math.round(o.extraClients), warn=o.cppB>120;
+    rows+='<div class="row"><div class="l"><b>Llenar huecos de la agenda</b><span>Unos '+fmt(cx,0)+' clientes más al mes, con tu ticket medio. Serían '+fmt(o.cppB,0)+' por persona'+(warn?', por encima de 120: mejor subir también el ticket':'')+'</span></div><div class="r"><strong>+'+eur(o.gainAgenda)+'</strong></div></div>';
+  }
   h+='<div class="card"><p class="t">De dónde sale</p><div class="rows">'+rows+'</div>';
-  if(o.gap>0) h+='<p class="sub" style="margin-top:10px">Hoy te faltan '+eur(o.gap)+' al mes para llegar al mínimo. Lo que no cubren estos cambios son horas sin clienta en la agenda.</p>';
-  h+='</div>';
-  if(o.extraClients>0) h+='<div class="card"><p class="t">Otra vía, no sumada arriba</p><p><b>Llenar la agenda hasta 80 clientes por persona</b></p><p class="sub">Son '+fmt(o.extraClients,0)+' clientes más al mes. Con tu ticket medio serían <b>+'+eur(o.gain3)+'</b> al mes.</p></div>';
+  h+='<p class="sub" style="margin-top:10px">Es lo que falta para que cada minuto pagado del equipo facture '+eur(o.obj,2)+'.</p></div>';
 
   var fix=o.sv.filter(function(s){return s.gain>0.5}).sort(function(a,b){return b.gain-a.gain});
   if(fix.length){
