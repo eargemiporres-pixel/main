@@ -1,4 +1,4 @@
-/* Muttto · Gestor de Proyectos. Vanilla JS. Dos almacenes: Supabase (nube) o local (demo). */
+/* Muttto · Gestor de Proyectos. Vanilla JS; habla con la API de server.js. */
 (function(){
 'use strict';
 
@@ -27,84 +27,25 @@ const isLate=t=>t.due_date&&t.due_date<today()&&t.status!=='hecha';
 const initials=n=>(n||'?').split(/\s+/).slice(0,2).map(x=>x[0]).join('').toUpperCase();
 function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2500)}
 
-/* ---------- Almacén local (demo) ---------- */
-const LS='gestor-muttto-v1';
-const localStore={
-  mode:'demo',
-  _d(){let d=JSON.parse(localStorage.getItem(LS)||'null');if(!d){d=seed();localStorage.setItem(LS,JSON.stringify(d))}return d},
-  _save(d){localStorage.setItem(LS,JSON.stringify(d))},
-  async session(){const d=this._d();return d.users.find(u=>u.id===d.session)||null},
-  async signIn(email,pw){const d=this._d();const u=d.users.find(u=>u.email===email.trim().toLowerCase()&&u.pw===pw);
-    if(!u)throw new Error('Correo o contraseña incorrectos.');d.session=u.id;this._save(d);return u},
-  async signUp(email,pw,name,department){const d=this._d();email=email.trim().toLowerCase();
-    if(d.users.some(u=>u.email===email))throw new Error('Ese correo ya existe.');
-    const u={id:uid(),email,pw,name,role:'',department};d.users.push(u);d.session=u.id;this._save(d);return u},
-  async signOut(){const d=this._d();d.session=null;this._save(d)},
-  async load(){const d=this._d();return{profiles:d.users.map(({pw,...p})=>p),projects:d.projects,tasks:d.tasks,comments:d.comments}},
-  async save(table,row){const d=this._d();const arr=d[table];const i=arr.findIndex(x=>x.id===row.id);if(i>=0)arr[i]={...arr[i],...row};else arr.push(row);this._save(d)},
-  async remove(table,id){const d=this._d();d[table]=d[table].filter(x=>x.id!==id);
-    if(table==='projects'){const ids=d.tasks.filter(t=>t.project_id===id).map(t=>t.id);d.tasks=d.tasks.filter(t=>t.project_id!==id);d.comments=d.comments.filter(c=>!ids.includes(c.task_id))}
-    if(table==='tasks')d.comments=d.comments.filter(c=>c.task_id!==id);
-    this._save(d)}
-};
-function seed(){
-  const U=(email,name,role,department)=>({id:uid(),email,pw:'muttto2026',name,role,department});
-  const users=[U('proyectos@muttto.com','Responsable de Proyectos','Reformas e interiorismo','proyectos'),
-    U('comercial@muttto.com','Equipo Comercial','Comercial','comercial'),
-    U('marketing@muttto.com','Equipo Marketing','Marketing','marketing'),
-    U('operaciones@muttto.com','Equipo Operaciones','Operaciones','operaciones')];
-  const P=(name,description,department,line,o,status,priority,s,e)=>({id:uid(),name,description,department,line,owner_id:users[o].id,status,priority,start_date:addDays(s),due_date:addDays(e)});
-  const projects=[
-    P('Reforma de showroom (EJEMPLO)','Proyecto de ejemplo: borra o edita lo que quieras.','proyectos','reformas',0,'en_curso','alta',-10,35),
-    P('Lanzamiento Vibro Wellness Suite (EJEMPLO)','Plan de lanzamiento comercial y de comunicación.','marketing','vibro',2,'en_curso','media',-5,50),
-    P('Catálogo de formaciones Q1 (EJEMPLO)','Preparar y publicar el catálogo del trimestre.','formacion','formacion',3,'planificado','media',7,40)];
-  const T=(p,title,a,status,priority,s,e)=>({id:uid(),project_id:projects[p].id,title,notes:'',assignee_id:users[a].id,status,priority,start_date:addDays(s),due_date:addDays(e)});
-  const tasks=[
-    T(0,'Medición y levantamiento de planos',0,'hecha','alta',-10,-6),
-    T(0,'Presupuesto de obra y proveedores',0,'en_curso','alta',-5,3),
-    T(0,'Selección de mobiliario',1,'pendiente','media',2,15),
-    T(0,'Ejecución de obra',0,'pendiente','alta',10,30),
-    T(0,'Aprobación de muestras',1,'revision','media',-3,-1),
-    T(1,'Definir mensajes y claims',2,'en_curso','media',-5,5),
-    T(1,'Fotografía de producto',2,'pendiente','media',6,20),
-    T(1,'Campaña de lanzamiento',2,'pendiente','alta',20,45),
-    T(2,'Revisar contenidos y temarios',3,'pendiente','media',7,20),
-    T(2,'Maquetar catálogo',2,'pendiente','baja',20,35)];
-  return{users,projects,tasks,comments:[],session:null};
+/* ---------- Almacén: API del servidor (Render) ---------- */
+async function http(method,url,body){
+  const r=await fetch(url,{method,headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,credentials:'same-origin'});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){const e=new Error(j.error||'Error '+r.status);e.status=r.status;throw e}
+  return j;
 }
-
-/* ---------- Almacén Supabase ---------- */
-const CFG=window.GESTOR_CONFIG||{};
-const cloud={
-  mode:'cloud',c:null,
-  async init(){
-    await new Promise((ok,ko)=>{const s=document.createElement('script');
-      s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';s.onload=ok;s.onerror=()=>ko(new Error('No se pudo cargar Supabase.'));document.head.appendChild(s)});
-    this.c=window.supabase.createClient(CFG.supabaseUrl,CFG.supabaseAnonKey);
-  },
-  async _profile(user){
-    const{data}=await this.c.from('profiles').select('*').eq('id',user.id).maybeSingle();
-    return data||{id:user.id,email:user.email,name:user.email,role:'',department:'proyectos'};
-  },
-  async session(){const{data}=await this.c.auth.getSession();return data.session?this._profile(data.session.user):null},
-  async signIn(email,pw){const{data,error}=await this.c.auth.signInWithPassword({email:email.trim(),password:pw});
-    if(error)throw new Error('Correo o contraseña incorrectos.');return this._profile(data.user)},
-  async signUp(email,pw,name,department){
-    const{data,error}=await this.c.auth.signUp({email:email.trim(),password:pw,options:{data:{name,department}}});
-    if(error)throw new Error(error.message);
-    if(!data.session)throw new Error('Cuenta creada. Revisa tu correo para confirmarla y luego entra.');
-    return this._profile(data.user)},
-  async signOut(){await this.c.auth.signOut()},
-  async load(){
-    const q=async t=>{const{data,error}=await this.c.from(t).select('*');if(error)throw error;return data};
-    const[profiles,projects,tasks,comments]=await Promise.all(['profiles','projects','tasks','comments'].map(q));
-    return{profiles,projects,tasks,comments}},
-  async save(t,row){const{error}=await this.c.from(t).upsert(row);if(error)throw error},
-  async remove(t,id){const{error}=await this.c.from(t).delete().eq('id',id);if(error)throw error}
+const api={
+  async session(){try{return await http('GET','/api/me')}catch(e){if(e.status===401)return null;throw e}},
+  signIn:(email,password)=>http('POST','/api/login',{email,password}),
+  signUp:(email,password,name,department)=>http('POST','/api/signup',{email,password,name,department}),
+  signOut:()=>http('POST','/api/logout'),
+  load:()=>http('GET','/api/data'),
+  save:(t,row)=>http('PUT','/api/'+t+'/'+row.id,row),
+  remove:(t,id)=>http('DELETE','/api/'+t+'/'+id)
 };
 
 /* ---------- Estado ---------- */
-let store=localStore,db={profiles:[],projects:[],tasks:[],comments:[]},me=null;
+let store=api,db={profiles:[],projects:[],tasks:[],comments:[]},me=null;
 const ui={tab:'tareas',f:{dept:'',line:'',status:'',q:'',owner:''},team:'',navOpen:false};
 const person=id=>db.profiles.find(p=>p.id===id);
 const who=id=>{const p=person(id);return p?`<span class="who"><span class="avatar">${esc(initials(p.name))}</span>${esc(p.name)}</span>`:'<span class="muted small">Sin asignar</span>'};
@@ -123,13 +64,13 @@ const go=h=>{location.hash=h;ui.navOpen=false};
 function shell(inner,r){
   const nav=(h,ic,t)=>`<a class="nav ${r.name===h?'on':''}" data-go="#/${h}">${ic} ${t}</a>`;
   return `<div class="shell"><aside class="side ${ui.navOpen?'open':''}">
-    <div class="brand"><img src="../assets/logo-muttto.png" alt="Muttto"><b>Gestor de<br>Proyectos</b></div>
+    <div class="brand"><img src="logo-muttto.png" alt="Muttto"><b>Gestor de<br>Proyectos</b></div>
     ${nav('dashboard','◧','Resumen')}${nav('projects','▤','Proyectos')}${nav('mytasks','✓','Mis tareas')}
     ${nav('departments','▦','Departamentos')}${nav('team','☺','Equipo')}
     <div class="sep">Departamentos</div>
     ${DEPTS.map(d=>`<a class="nav" data-go="#/departments/${d[0]}">${esc(d[1])}</a>`).join('')}
     <div class="me">${esc(me.name)}<br><span class="muted">${esc(me.email||'')}</span><br>
-      ${store.mode==='demo'?'<span class="chip amber">Modo demo</span><br>':''}<button data-act="logout">Cerrar sesión</button></div>
+      <button data-act="logout">Cerrar sesión</button></div>
   </aside><main class="main"><button class="btn ghost menu-btn" data-act="menu" style="margin-bottom:12px">☰ Menú</button>${inner}</main></div>`;
 }
 
@@ -279,7 +220,7 @@ function taskForm(t,projectId){
 
 /* ---------- Login ---------- */
 function loginView(signup){
-  return `<div class="login"><form class="box" id="lf"><img src="../assets/logo-muttto.png" alt="Muttto"><h1>Gestor de Proyectos</h1>
+  return `<div class="login"><form class="box" id="lf"><img src="logo-muttto.png" alt="Muttto"><h1>Gestor de Proyectos</h1>
     <p class="muted small" style="text-align:center;margin-bottom:16px">Muttto · The Beauty Lab</p>
     ${signup?'<div class="field"><label>Nombre</label><input name="name" required></div>':''}
     <div class="field"><label>Correo</label><input name="email" type="email" required autocomplete="username"></div>
@@ -287,7 +228,6 @@ function loginView(signup){
     ${signup?`<div class="field"><label>Departamento</label><select name="department">${DEPTS.map(d=>`<option value="${d[0]}">${esc(d[1])}</option>`).join('')}</select></div>`:''}
     <div class="err" id="lerr"></div><button class="btn" style="width:100%">${signup?'Crear cuenta':'Entrar'}</button>
     <div class="sw"><button type="button" data-act="${signup?'to-login':'to-signup'}">${signup?'Ya tengo cuenta':'Crear usuario nuevo'}</button></div>
-    ${store.mode==='demo'&&!signup?`<div class="demo"><b>Modo demo</b> (datos solo en este navegador). Usuarios de prueba, contraseña <code>muttto2026</code>:<br>proyectos@muttto.com · comercial@muttto.com · marketing@muttto.com · operaciones@muttto.com</div>`:''}
   </form></div>`;
 }
 
@@ -346,10 +286,9 @@ window.addEventListener('hashchange',()=>{ui.navOpen=false;const n=route().name;
 /* ---------- Arranque ---------- */
 (async function boot(){
   try{
-    if(CFG.supabaseUrl&&CFG.supabaseAnonKey){await cloud.init();store=cloud}
     me=await store.session();if(me)await refresh();
     render();
-    if(store.mode==='cloud')setInterval(()=>{if(me&&$('#modal').hidden&&!document.activeElement.matches('input,textarea,select'))refresh().then(render).catch(()=>{})},30000);
+    setInterval(()=>{if(me&&$('#modal').hidden&&!document.activeElement.matches('input,textarea,select'))refresh().then(render).catch(()=>{})},30000);
   }catch(e){$('#app').innerHTML=`<div class="login"><div class="box"><h1>No se pudo iniciar</h1><p class="err">${esc(e.message)}</p></div></div>`}
 })();
 })();

@@ -1,33 +1,39 @@
-# Muttto · Gestor de Proyectos (`/gestor/`)
+# Muttto · Gestor de Proyectos (`gestor/`)
 
 Gestor de proyectos y tareas para toda la empresa (estilo Monday / ClickUp, en pequeño):
 proyectos por **departamento** y **línea de negocio**, responsable, estado, prioridad,
-fechas, tareas con vista de lista, tablero (arrastrar y soltar) y cronograma, comentarios,
-"Mis tareas", resumen con atrasos y vista de equipo.
+fechas; tareas en lista, tablero (arrastrar y soltar) y cronograma; comentarios,
+"Mis tareas", resumen con atrasos y vista de equipo. Los archivos y catálogos siguen en Drive.
 
 - **Departamentos**: Proyectos (nuevo), Operaciones, Marketing, Logística y almacén,
   Finanzas y administración, Formación, Consultoría y equipo interno, Comercial.
-- **Líneas de negocio**: Formaciones, Consultoría, Venta de producto, Reformas e interiorismo,
+- **Líneas**: Formaciones, Consultoría, Venta de producto, Reformas e interiorismo,
   Venta de mobiliario, Vibro Wellness Suite.
-- Los archivos y catálogos se quedan en Google Drive: aquí solo se gestiona el trabajo.
 
-Es estática (HTML/CSS/JS) y se publica sola con GitHub Pages en `…/gestor/`.
+## Cómo funciona
+Un servidor Node sin librerías web (`server.js`, solo `pg` para Postgres) que sirve la web (`public/`) y una API con
+usuario y contraseña (contraseñas con scrypt, sesión en cookie). Los datos se guardan en
+la base de datos Postgres de Render. Sin `DATABASE_URL` (en local) usa un archivo
+`data.json`, solo para pruebas.
 
-## Modo demo (por defecto)
-Sin configurar nada funciona ya, pero los datos se guardan **solo en el navegador** y no se
-comparten. Usuarios de prueba (contraseña `muttto2026`): proyectos@, comercial@, marketing@,
-operaciones@ `muttto.com`. Los proyectos "(EJEMPLO)" se pueden borrar.
+## Publicar en Render (desde GitHub)
+1. En Render: **New → Blueprint** y elegir este repositorio. Lee `render.yaml` (en la raíz)
+   y crea el servicio web `muttto-gestor` y la base de datos `muttto-gestor-db`.
+2. Esperar al primer despliegue y abrir la URL `https://muttto-gestor.onrender.com`
+   (o la que asigne Render). Cada push a la rama conectada vuelve a desplegar solo.
+3. Al arrancar con la base vacía se crean 4 usuarios tipo y 3 proyectos "(EJEMPLO)":
+   `proyectos@`, `comercial@`, `marketing@`, `operaciones@` `muttto.com`,
+   contraseña inicial `Muttto2026!` (cámbiala con la variable `INITIAL_PASSWORD`
+   antes del primer arranque, o crea usuarios nuevos y borra estos).
+4. Cualquiera puede crear su usuario desde "Crear usuario nuevo". Para cerrar el registro
+   una vez entre todo el equipo, poner la variable `ALLOW_SIGNUP=false`.
 
-## Pasar a la nube compartida (Supabase, gratis)
-1. Crear un proyecto en https://supabase.com.
-2. SQL Editor → pegar y ejecutar `supabase.sql` (tablas + permisos).
-3. Authentication → Providers → Email: desactivar "Confirm email" para que cualquiera pueda
-   crear su usuario y entrar al momento.
-4. (Opcional) ejecutar `supabase-seed-usuarios.sql`: crea los 4 usuarios tipo con la
-   contraseña inicial `Muttto2026!`. No está probado contra todas las versiones de Supabase;
-   si falla, los usuarios se crean igual desde la pantalla "Crear usuario nuevo".
-5. Project Settings → API: copiar **Project URL** y **anon public key** en `config.js`
-   y hacer push. La clave anon es pública por diseño; la seguridad la dan las políticas del SQL.
+**Coste y límites:** `render.yaml` usa plan `starter` (web) y `basic-256mb` (base de datos),
+de pago, para que no se duerma ni caduque. La base de datos gratuita de Render se borra a
+los 30 días, así que no es apta para datos reales; si pruebas con el plan gratuito, pon
+`plan: free` en ambos y no guardes nada importante.
 
-Privacidad baja a propósito: cualquier persona con usuario ve y edita todo. Para cerrar el
-acceso, desactivar "Allow new users to sign up" en Supabase tras crear a las personas.
+## Desarrollo local
+```bash
+cd gestor && npm install && npm start   # http://localhost:3000
+```
