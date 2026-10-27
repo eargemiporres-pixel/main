@@ -444,8 +444,10 @@ function load(){
 
 /* ---------- cálculo ----------
    Datos: personas, horas, clientes, facturación y, por servicio, precio y minutos.
-   No se pide cuántas veces se hace cada servicio: se reparte la facturación a partes
-   iguales entre los servicios de la lista (k veces cada uno al mes). */
+   No se pide cuántas veces se hace cada servicio: se supone que el tiempo con clienta
+   se reparte a partes iguales entre los servicios de la lista (los cortos se hacen más
+   veces y los largos menos). Con eso, el precio medio por minuto es la media simple de
+   los €/min de cada servicio. */
 function sumOf(a,f){return a.reduce(function(t,s){return t+f(s)},0)}
 function calc(){
   var P=num(S.personas), H=num(S.horas), C=num(S.clientes), F=num(S.factura);
@@ -474,30 +476,30 @@ function calc(){
   o.sv=sv; o.hasSv=sv.length>0;
   if(!o.hasSv) return o;
 
-  var sumP=sumOf(sv,function(s){return s.precio}), sumM=sumOf(sv,function(s){return s.min});
-  o.k=F/sumP;
+  var N=sv.length;
+  function mean(a){return a.length?sumOf(a,function(s){return s.ppm})/a.length:NaN}
   sv.forEach(function(s){
     s.ppm=s.precio/s.min;
     s.level=s.ppm<obj?'red':(s.ppm<hi?'amber':'green');
     s.newPrice=Math.max(s.precio,obj*s.min);
-    s.gain=o.k*(s.newPrice-s.precio);
     s.minNeeded=s.precio/obj;
   });
-  o.chairMin=o.k*sumM;
-  o.chairRevMin=sumP/sumM;
+  o.chairRevMin=mean(sv);                 // € por minuto con la clienta en el sillón
+  o.occ=o.revMin/o.chairRevMin;           // parte del tiempo pagado que hay clienta
+  o.chairMin=F/o.chairRevMin;             // minutos con clienta al mes
+  sv.forEach(function(s){ s.gain=(o.chairMin/N)*(s.newPrice-s.precio)/s.min; });
   o.bad=sv.filter(function(s){return s.level==='red'});
   var good=sv.filter(function(s){return s.level!=='red'});
-  o.okShare=good.length/sv.length;
-  var redM=sumOf(o.bad,function(s){return s.min}), goodM=sumOf(good,function(s){return s.min});
-  o.redTimeShare=redM/sumM;
-  o.red={n:o.bad.length, ppm:redM>0?sumOf(o.bad,function(s){return s.precio})/redM:NaN};
-  o.rest={n:good.length, ppm:goodM>0?sumOf(good,function(s){return s.precio})/goodM:NaN};
+  o.okShare=good.length/N;
+  o.redTimeShare=o.bad.length/N;
+  o.red={n:o.bad.length, ppm:mean(o.bad)};
+  o.rest={n:good.length, ppm:mean(good)};
 
   // palanca 1: cobrar al menos el mínimo por minuto en cada servicio
   o.gain1=sumOf(sv,function(s){return s.gain});
   // palanca 2: que el 60% del tiempo con clienta esté en servicios que llegan al mínimo
-  o.goodEstimated=goodM===0;
-  var ppmGood=goodM>0?sumOf(good,function(s){return s.precio})/goodM:hi;
+  o.goodEstimated=good.length===0;
+  var ppmGood=good.length?mean(good):hi;
   o.movedMin=Math.max(0,o.redTimeShare-0.4)*o.chairMin;
   o.gain2=o.movedMin*Math.max(0,ppmGood-obj);
   closeB();
@@ -637,10 +639,13 @@ function viewResumen(o){
   h+='<div class="duo-cap"><span>por minuto pagado</span><span></span><span>mínimo por minuto</span></div>';
   if(o.belowCost) h+='<div class="alert">Con '+eur(o.revMin,2)+' por minuto ni cubres lo que cuesta el equipo ('+eur(S.coste,2)+' por minuto).</div>';
   if(o.hasSv){
-    var lede='Tus servicios cobran de media <b>'+eur(o.chairRevMin,2)+'/min</b> con la clienta en el sillón.';
-    if(o.chairRevMin<o.obj) lede+=' Tampoco llega al mínimo.';
-    else if(below) lede+=' Los precios llegan, pero hay horas sin clienta en la agenda.';
-    h+='<p class="lede">'+lede+'</p>';
+    var occP=Math.round(o.occ*100), okP=o.chairRevMin>=o.obj;
+    var explain='<div class="card"><p class="t">Por qué sale '+eur(o.revMin,2)+'</p><div class="rows">'+
+      '<div class="row"><div class="l"><b>Precio medio de tus servicios</b><span>por minuto con la clienta</span></div><div class="r"><strong>'+eur(o.chairRevMin,2)+'</strong><span class="pill '+(okP?'green':'red')+'">'+(okP?'Llega al mínimo':'Bajo el mínimo')+'</span></div></div>'+
+      '<div class="row"><div class="l"><b>Tiempo con clienta</b><span>del tiempo que pagas al equipo</span></div><div class="r"><strong>'+occP+'%</strong>'+(occP>100?'<span class="pill amber">Revisa horas o precios</span>':'')+'</div></div>'+
+      '<div class="row"><div class="l"><b>Resultado</b><span>por minuto pagado</span></div><div class="r"><strong>'+eur(o.revMin,2)+'</strong></div></div>'+
+      '</div><p class="sub" style="margin-top:10px">Se calcula así: facturación ÷ minutos pagados (personas × horas). Cuanto más tiempo sin clienta, más baja de '+eur(o.chairRevMin,2)+'.</p></div>';
+    h+=explain;
   }
   if(o.gap>0){
     h+='<div class="card red"><p class="t">Dejas de facturar</p><div class="big red">'+eur(o.gap)+'<span class="sub"> al mes</span></div>'+
@@ -719,7 +724,7 @@ function renderRes(keepScroll){
   var o=calc(), el=$('#res-body');
   if(!o.ok){el.innerHTML='<p>Faltan datos del salón.</p><button class="btn" type="button" data-back1="1">Completar</button>';return}
   var h=S.tab==='servicios'?viewServicios(o):(S.tab==='despues'?viewDespues(o):viewResumen(o));
-  h+='<p class="foot">Estimación a partir de los datos que has indicado. Como no pedimos cuántas veces haces cada servicio, repartimos tu facturación a partes iguales entre los servicios de la lista. Un mes tiene unas '+fmt(WEEKS,1)+' semanas y el coste del equipo se toma a '+eur(S.coste,2)+' por minuto.</p>';
+  h+='<p class="foot">Estimación a partir de los datos que has indicado. Como no pedimos cuántas veces haces cada servicio, repartimos el tiempo con clienta a partes iguales entre los servicios de la lista. Un mes tiene unas '+fmt(WEEKS,1)+' semanas y el coste del equipo se toma a '+eur(S.coste,2)+' por minuto.</p>';
   el.innerHTML=h;
   el._o=o;
   if(!keepScroll){try{window.scrollTo(0,0)}catch(e){}}
