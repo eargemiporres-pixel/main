@@ -138,3 +138,13 @@ y 60 % de servicios que llegan al mínimo por minuto.
 Con GitHub Pages activo, se publica sola al hacer push a `main` en
 `https://<usuario>.github.io/<repositorio>/calculadora/`.
 Contacto que aparece en la página: edu@muttto.com.
+
+
+## Calculadora completa (`/calculadora-completa/`)
+
+Duplicado de la calculadora que además pide, en cada servicio, **cuántas veces
+se hizo en el mes**. Con eso calcula el tiempo real con clienta, el porcentaje
+del tiempo pagado que hay clienta y la dedicación y rentabilidad de cada
+servicio, sin suponer nada. Antes de empezar muestra una ventana con todo lo que
+hay que tener a mano para que el resultado sea veraz. La calculadora simple
+(`/calculadora/`) no cambia.
